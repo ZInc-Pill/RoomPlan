@@ -1,0 +1,6 @@
+{
+  "name": "Room Plan App",
+  "description": "An intuitive app to draw walls, place furniture, and visualize your room layout in 2D and 3D.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

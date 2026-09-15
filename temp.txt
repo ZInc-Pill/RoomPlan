@@ -1,0 +1,25 @@
+    }
+
+    return {
+      left: item.x - w / 2,
+      right: item.x + w / 2,
+      top: item.y - d / 2,
+      bottom: item.y + d / 2,
+      w, d
+    };
+  };
+
+  const snapItemPosition = (rawPt: Point, itemToSnap: PlacedItem): Point => {
+    let snapX = Math.round(rawPt.x / currentGridSize) * currentGridSize;
+    let snapY = Math.round(rawPt.y / currentGridSize) * currentGridSize;
+
+    const SNAP_THRESHOLD = 15;
+    
+    const typeInfo = ITEM_CATALOG.find(i => i.id === itemToSnap.typeId);
+    let w = ((itemToSnap.width || typeInfo?.width || 0) * CM_TO_PX);
+    let d = ((itemToSnap.depth || typeInfo?.depth || 0) * CM_TO_PX);
+    const rotDeg = (itemToSnap.rotation * 180 / Math.PI) % 180;
+    if (Math.abs(rotDeg - 90) < 1 || Math.abs(rotDeg - 270) < 1) {
+      const temp = w; w = d; d = temp;
+    }
+
