@@ -89,7 +89,7 @@ function createCandidate(
   activeSnapValue: number | null,
   releaseThreshold: number
 ): SmartSnapCandidate {
-  const distance = Math.abs(offset);
+  const distance = Math.abs(offset) * (18 / releaseThreshold);
   let score = distance;
 
   // Type-based penalties (lower is better)
@@ -105,8 +105,8 @@ function createCandidate(
 
   // Hysteresis: strongly prefer staying snapped to the currently active line if within release threshold
   if (activeSnapValue !== null && Math.abs(targetValue - activeSnapValue) < 0.1) {
-    if (distance <= releaseThreshold) {
-      score -= 50; // Huge bonus to prevent flickering
+    if (Math.abs(offset) <= releaseThreshold) {
+      score -= 8; // Modest preference for a stable target
     }
   }
 
@@ -188,9 +188,9 @@ export const calculateItemSnap = (
 
   const { w, d } = itemBounds;
   
-  // Base threshold is 15 world units. Zoom-aware: snap distance is constant in screen space.
-  const snapThreshold = 15 / zoom;
-  const releaseThreshold = 24 / zoom; // Hysteresis threshold
+  // Screen-space thresholds with world-space caps prevent long pulls when zoomed out.
+  const snapThreshold = Math.min(12 / Math.max(zoom, 0.05), 20);
+  const releaseThreshold = Math.min(18 / Math.max(zoom, 0.05), 30); // Hysteresis threshold
 
   const candidatesX: SmartSnapCandidate[] = [];
   const candidatesY: SmartSnapCandidate[] = [];
@@ -199,16 +199,13 @@ export const calculateItemSnap = (
   const gridSnapX = get1DSnapCoordinate(rawPt.x, w, gridSize);
   const gridSnapY = get1DSnapCoordinate(rawPt.y, d, gridSize);
   
-  // Determine which part of the object snapped to the grid to provide the guide
-  let gridGuideX = gridSnapX;
-  if (Math.abs(gridSnapX - rawPt.x) < 0.1) gridGuideX = rawPt.x;
-  else if (Math.abs((gridSnapX - w/2) - (rawPt.x - w/2)) < 0.1) gridGuideX = gridSnapX - w/2;
-  else gridGuideX = gridSnapX + w/2;
-
-  let gridGuideY = gridSnapY;
-  if (Math.abs(gridSnapY - rawPt.y) < 0.1) gridGuideY = rawPt.y;
-  else if (Math.abs((gridSnapY - d/2) - (rawPt.y - d/2)) < 0.1) gridGuideY = gridSnapY - d/2;
-  else gridGuideY = gridSnapY + d/2;
+  // Return the actual edge or centre that lands on a grid line.
+  const gridGuide = (center: number, size: number) => {
+    const positions = [center - size / 2, center + size / 2, center];
+    return positions.reduce((best, value) => Math.abs(value / gridSize - Math.round(value / gridSize)) < Math.abs(best / gridSize - Math.round(best / gridSize)) ? value : best);
+  };
+  const gridGuideX = gridGuide(gridSnapX, w);
+  const gridGuideY = gridGuide(gridSnapY, d);
 
   if (Math.abs(gridSnapX - rawPt.x) <= releaseThreshold) {
     candidatesX.push(createCandidate(gridSnapX - rawPt.x, gridGuideX, 'grid', activeSnapX, releaseThreshold));
@@ -222,6 +219,10 @@ export const calculateItemSnap = (
     const tb = otherItemsBounds[i];
     const tc = otherItemsCenters[i];
     
+    // Only nearby objects attract; alignment across the room is surprising on touch.
+    const nearbyY = itemBounds.bottom >= tb.top - releaseThreshold && itemBounds.top <= tb.bottom + releaseThreshold;
+    const nearbyX = itemBounds.right >= tb.left - releaseThreshold && itemBounds.left <= tb.right + releaseThreshold;
+    if (nearbyY) {
     // X alignments
     candidatesX.push(createCandidate(tb.right - itemBounds.left, tb.right, 'object-edge', activeSnapX, releaseThreshold));
     candidatesX.push(createCandidate(tb.left - itemBounds.right, tb.left, 'object-edge', activeSnapX, releaseThreshold));
@@ -229,12 +230,15 @@ export const calculateItemSnap = (
     candidatesX.push(createCandidate(tb.right - itemBounds.right, tb.right, 'object-edge', activeSnapX, releaseThreshold));
     candidatesX.push(createCandidate(tc.x - rawPt.x, tc.x, 'object-center', activeSnapX, releaseThreshold));
 
+    }
+    if (nearbyX) {
     // Y alignments
     candidatesY.push(createCandidate(tb.bottom - itemBounds.top, tb.bottom, 'object-edge', activeSnapY, releaseThreshold));
     candidatesY.push(createCandidate(tb.top - itemBounds.bottom, tb.top, 'object-edge', activeSnapY, releaseThreshold));
     candidatesY.push(createCandidate(tb.top - itemBounds.top, tb.top, 'object-edge', activeSnapY, releaseThreshold));
     candidatesY.push(createCandidate(tb.bottom - itemBounds.bottom, tb.bottom, 'object-edge', activeSnapY, releaseThreshold));
     candidatesY.push(createCandidate(tc.y - rawPt.y, tc.y, 'object-center', activeSnapY, releaseThreshold));
+    }
   }
 
   // 3. Wall Candidates

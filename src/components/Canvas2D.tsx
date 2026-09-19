@@ -17,6 +17,7 @@ import {
   Move
 } from 'lucide-react';
 import { getWallSegments } from '../utils/wallUtils';
+import { RailingEndpoints } from './RailingEndpoints';
 import { UniversalJoystick } from './UniversalJoystick';
 import { pointToLineSegmentDistance, calculateBoxRadiusAlongVector, vectorLength } from '../utils/geometry';
 import { cmToPx, pxToMeters, getGridSize } from '../utils/coordinates';
@@ -33,6 +34,8 @@ import { isInteractiveElement } from '../utils/input';
 type RulerMeasurement = { id: string; start: Point; end: Point; createdAt: number };
 
 interface Canvas2DProps {
+  gridOption: 1 | 2 | 3;
+  setGridOption: (option: 1 | 2 | 3) => void;
   walls: Wall[];
   floors: Floor[];
   items: PlacedItem[];
@@ -56,11 +59,10 @@ interface Canvas2DProps {
 export function Canvas2D({
   walls, floors, items, comments, mode, selectedItemIds, selectedWallId, selectedFloorId, selectedCommentId, 
   onUpdateWalls, onUpdateFloors, onUpdateItems, onUpdateComments, onSelect, setMode, onDuplicateFloor, onDeleteFloor,
-  isDrawerOpen = false
+  gridOption, setGridOption, isDrawerOpen = false
 }: Canvas2DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const [gridOption, setGridOption] = useState<1 | 2 | 3>(1);
   const currentGridSize = getGridSize(gridOption);
 
 
@@ -261,6 +263,7 @@ export function Canvas2D({
   }, [mode, handleFloorKeyDown, handleWallKeyDown, setMode]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    if (isDrawerOpen || (e.target instanceof Element && e.target.closest('button, input, textarea, select, [role="dialog"], [data-editor-control]'))) return;
     const { handled } = handleViewportPointerDown(e);
     if (handled) return;
 
@@ -963,7 +966,7 @@ export function Canvas2D({
               top: item.y,
               width: w,
               height: d,
-              backgroundColor: typeInfo.shape !== 'door' && typeInfo.shape !== 'window' ? typeInfo.color : 'transparent',
+              backgroundColor: typeInfo.shape !== 'door' && typeInfo.shape !== 'window' && typeInfo.shape !== 'corner_railing' ? typeInfo.color : 'transparent',
               transform: `translate(-50%, -50%) rotate(${itemRot}rad)`,
               borderRadius: typeInfo.shape === 'cylinder' ? '50%' : typeInfo.shape === 'door' ? '0' : '4px',
               border: isSelected ? '2px solid #4f46e5' : (typeInfo.shape === 'door' ? 'none' : '1px solid rgba(0,0,0,0.2)'),
@@ -1060,8 +1063,8 @@ export function Canvas2D({
             )}
             {typeInfo.shape === 'corner_railing' && (
               <>
-                <div className="absolute top-0 bottom-1/2 left-1/2 w-0.5 bg-black/50 -translate-x-1/2"></div>
-                <div className="absolute top-1/2 right-0 left-1/2 h-0.5 bg-black/50 -translate-y-1/2"></div>
+                <div className="absolute inset-y-0 left-0 w-0.5 bg-slate-700"></div>
+                <div className="absolute top-0 inset-x-0 h-0.5 bg-slate-700"></div>
               </>
             )}
             {typeInfo.shape === 'rug' && (
@@ -1077,6 +1080,9 @@ export function Canvas2D({
         );
       })}
 
+      {mode === 'SELECT' && !isDrawerOpen && selectedItemIds.length === 1 && items.filter(item => item.id === selectedItemIds[0] && ['railing', 'corner_railing'].includes(ITEM_CATALOG.find(type => type.id === item.typeId)?.shape || '')).map(item => (
+        <RailingEndpoints key={item.id} item={item} zoom={zoom} gridSize={currentGridSize} getPoint={getPoint} onUpdate={updated => onUpdateItems(items.map(current => current.id === updated.id ? updated : current))} />
+      ))}
       {/* Snap Guides */}
       {snapGuides.x !== null && (
         <div 
@@ -1421,7 +1427,7 @@ export function Canvas2D({
       {/* Canvas UI Overlays */}
       <div className="hidden md:flex absolute top-6 left-6 items-center gap-4 bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-sm pointer-events-none z-10">
         <span className="text-xs font-bold text-slate-500">
-          SCALE: 1 Sub-Grid = {gridOption === 1 ? '0.5m' : gridOption === 2 ? '0.25m' : '0.125m'} | 1 Main Grid = 2.5m
+          SCALE: 1 Sub-Grid = {gridOption === 1 ? '0.5m' : gridOption === 2 ? '0.25m' : '0.125m'} | 1 Main Grid = {pxToMeters(currentGridSize * 5)}m
         </span>
         <div className="h-4 w-px bg-slate-200"></div>
         <span className="text-xs font-bold text-slate-800">

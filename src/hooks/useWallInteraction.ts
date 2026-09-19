@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Point, Wall, AppMode } from '../types';
+import { moveConnectedWallPoints } from '../utils/wallConnections';
 import { snapDeltaToGrid } from '../utils/snapping';
 
 export const MIN_WALL_LENGTH = 10;
@@ -10,11 +11,14 @@ export interface DraggingWallState {
   startX: number;
   startY: number;
   origWall: Wall;
+  originalWalls: Wall[];
 }
 
 export interface DraggingWallNodeState {
   id: string;
   node: 'start' | 'end';
+  originalWalls: Wall[];
+  anchor: Point;
 }
 
 /**
@@ -134,7 +138,7 @@ export function useWallInteraction({
    * Pointer down on a wall segment
    */
   const handleWallPointerDown = useCallback((e: React.PointerEvent, wall: Wall) => {
-    if (mode !== 'SELECT') return;
+    if (mode !== 'SELECT' || e.button !== 0 || !e.isPrimary) return;
     e.stopPropagation();
     selectWall(e, wall.id);
     const pt = getPoint(e);
@@ -143,16 +147,19 @@ export function useWallInteraction({
       startX: pt.x,
       startY: pt.y,
       origWall: { ...wall },
+      originalWalls: walls,
     });
-  }, [mode, selectWall, getPoint]);
+  }, [mode, selectWall, getPoint, walls]);
 
   /**
    * Pointer down on an endpoint handle (start or end)
    */
   const handleWallNodePointerDown = useCallback((e: React.PointerEvent, wallId: string, node: 'start' | 'end') => {
+    if (mode !== 'SELECT' || e.button !== 0 || !e.isPrimary) return;
     e.stopPropagation();
-    setDraggingWallNode({ id: wallId, node });
-  }, []);
+    const wall = walls.find(w => w.id === wallId);
+    if (wall) setDraggingWallNode({ id: wallId, node, originalWalls: walls, anchor: wall[node] });
+  }, [mode, walls]);
 
   /**
    * Background pointer down (handles DRAW_WALL start or second-tap completion)
@@ -195,24 +202,18 @@ export function useWallInteraction({
       const dx = snapDeltaToGrid(pt.x - draggingWall.startX, currentGridSize);
       const dy = snapDeltaToGrid(pt.y - draggingWall.startY, currentGridSize);
 
-      const newWalls = walls.map(w => {
-        if (w.id === draggingWall.id) {
-          return moveWall(draggingWall.origWall, dx, dy);
-        }
-        return w;
-      });
+      const moved = moveWall(draggingWall.origWall, dx, dy);
+      const newWalls = moveConnectedWallPoints(draggingWall.originalWalls, [
+        { from: draggingWall.origWall.start, to: moved.start },
+        { from: draggingWall.origWall.end, to: moved.end },
+      ]);
       onUpdateWalls(newWalls);
       return { handled: true };
     }
 
     if (mode === 'SELECT' && draggingWallNode) {
       const snapped = snapToGrid(pt);
-      const newWalls = walls.map(w => {
-        if (w.id === draggingWallNode.id) {
-          return moveWallNode(w, draggingWallNode.node, snapped);
-        }
-        return w;
-      });
+      const newWalls = moveConnectedWallPoints(draggingWallNode.originalWalls, [{ from: draggingWallNode.anchor, to: snapped }]);
       onUpdateWalls(newWalls);
       return { handled: true };
     }

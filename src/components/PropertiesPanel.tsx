@@ -61,7 +61,7 @@ export function PropertiesPanel({
   };
 
   return (
-    <aside className="hidden md:flex w-72 bg-white/80 backdrop-blur-xl border-l border-slate-200 h-full flex-col shadow-[-4px_0_24px_rgba(0,0,0,0.02)] z-10 absolute right-0 top-0 transition-transform duration-300 ease-out">
+    <aside className="hidden md:flex w-72 shrink-0 bg-white/80 backdrop-blur-xl border-l border-slate-200 h-full flex-col shadow-[-4px_0_24px_rgba(0,0,0,0.02)] z-10 relative transition-transform duration-300 ease-out">
       <div className="p-5 border-b border-slate-100 flex items-center gap-2">
         <Settings2 className="w-5 h-5 text-indigo-500" />
         <h2 className="text-sm font-bold text-slate-800 tracking-tight">Inspector</h2>
@@ -435,6 +435,7 @@ export function PropertiesPanel({
             <div className="pt-2 border-t border-slate-100">
               <MaterialPicker
                 mode="item"
+                upholstery={selectedItem.typeId.startsWith("liv_sofa_") || ["bed_single", "bed_queen", "bed_king"].includes(selectedItem.typeId)}
                 currentMaterial={selectedItem.material}
                 currentColor={selectedItem.color}
                 onSelectMaterial={(materialId, defaultColor) => {

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   MousePointer2, 
   PenTool, 
@@ -20,6 +20,7 @@ import { AppMode } from '../types';
 import { UniversalJoystick } from './UniversalJoystick';
 
 interface MobileBottomDockProps {
+  gridSize: number;
   mode: AppMode;
   setMode: (mode: AppMode) => void;
   onOpenCatalog: () => void;
@@ -37,7 +38,7 @@ interface MobileBottomDockProps {
 }
 
 export function MobileBottomDock({
-  mode,
+  gridSize, mode,
   setMode,
   onOpenCatalog,
   onOpenLayers,
@@ -52,9 +53,11 @@ export function MobileBottomDock({
   isInspectorOpen = false,
   onNudgeSelected,
 }: MobileBottomDockProps) {
-  const [isJoystickActive, setIsJoystickActive] = useState(true);
+  const [isJoystickActive, setIsJoystickActive] = useState(false);
   const [glideSnapMode, setGlideSnapMode] = useState<'snap' | 'free'>('snap');
   const nudgeAccumulator = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  useEffect(() => { nudgeAccumulator.current = { x: 0, y: 0 }; }, [gridSize, glideSnapMode, selectedItemIds.join(','), selectedWallId, selectedFloorId, isJoystickActive]);
 
   // Handle joystick movement with Snap on Grid (Primary) vs Free Move (Secondary)
   const handleJoystickMove = (dx: number, dy: number) => {
@@ -65,7 +68,7 @@ export function MobileBottomDock({
       nudgeAccumulator.current.y += dy;
 
       const SNAP_THRESHOLD = 12;
-      const step = 20; // 0.5m grid in 2D
+      const step = gridSize;
       let stepX = 0;
       let stepY = 0;
 
@@ -87,7 +90,7 @@ export function MobileBottomDock({
 
   const handleSingleNudge = (dir: 'up' | 'down' | 'left' | 'right') => {
     if (!onNudgeSelected) return;
-    const step = glideSnapMode === 'snap' ? 20 : 4;
+    const step = glideSnapMode === 'snap' ? gridSize : 4;
     if (dir === 'left') onNudgeSelected(-step, 0);
     else if (dir === 'right') onNudgeSelected(step, 0);
     else if (dir === 'up') onNudgeSelected(0, -step);
@@ -102,7 +105,7 @@ export function MobileBottomDock({
     <div className="fixed bottom-0 left-0 right-0 z-30 flex flex-col pointer-events-none md:hidden">
       {/* Universal Floating Joystick for smooth thumb gliding on mobile */}
       {hasQuickActions && isJoystickActive && onNudgeSelected && (
-        <div className="fixed bottom-[calc(4.85rem+env(safe-area-inset-bottom,0px))] right-3 z-40 pointer-events-auto flex flex-col items-center bg-slate-900/95 text-white backdrop-blur-xl p-2.5 rounded-3xl shadow-2xl border border-slate-700/70 animate-in zoom-in-95 fade-in duration-150">
+        <div className="self-end mr-3 mb-2 pointer-events-auto flex flex-col items-center bg-slate-900/95 text-white backdrop-blur-xl p-2.5 rounded-3xl shadow-2xl border border-slate-700/70 animate-in zoom-in-95 fade-in duration-150">
           <div className="flex items-center justify-between w-full px-1 mb-1">
             <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-400">Glide</span>
             <button
@@ -130,10 +133,10 @@ export function MobileBottomDock({
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-white'
               }`}
-              title="Snap on Grid (Primary) - moves in 0.5m grid increments"
+              title={`Move by ${gridSize / 0.4} cm grid steps`}
             >
               <Magnet className="w-2.5 h-2.5" />
-              <span>Snap</span>
+              <span>{gridSize / 0.4} cm</span>
             </button>
             <button
               type="button"
@@ -155,7 +158,7 @@ export function MobileBottomDock({
       {/* Contextual Quick Action Floating Bar when items or walls are selected */}
       {hasQuickActions && (
         <div className="px-4 pb-2 flex justify-center pointer-events-auto animate-in slide-in-from-bottom-2 fade-in duration-200">
-          <div className="flex items-center gap-1.5 bg-slate-900/90 text-white backdrop-blur-xl px-3 py-1.5 rounded-full shadow-xl border border-slate-700/50">
+          <div className="flex flex-wrap justify-center items-center gap-1.5 w-full max-w-md bg-slate-900/90 text-white backdrop-blur-xl px-2 py-2 rounded-2xl shadow-xl border border-slate-700/50">
             {/* Joystick Toggle Pill */}
             {onNudgeSelected && (
               <button

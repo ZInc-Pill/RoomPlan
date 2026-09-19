@@ -4,6 +4,36 @@ Audit date: 16 September 2026. Scope: the Google AI Studio export in this worksp
 
 ## Assessment
 
+Fifteenth through seventeenth local increments (automatic continuation): mobile inspector movement now follows the shared grid and resets partial movement on context changes; inspector actions have 44px targets, a separate title row, correct close/expand labels and overscroll containment. Desktop breakpoint changes clear hidden mobile panels. Desktop inspector now occupies its own column; 3D toolbar wraps within the scene. 2D modal input blocking includes screenshot/shortcuts. 3D and screenshot code load on demand, procedural texture generation is separated from material metadata, and a preview error boundary preserves a route back to 2D. Initial JS decreases from about 2.64 MB / 620 KB gzip to 1.43 MB / 301 KB gzip; large chunks still warrant further profiling. Scene-only 2D screenshot capture excludes buttons and editor controls. Browser checks confirmed lazy 3D loading, mobile 25cm labels, readable action layout, panel switching, desktop inspector spacing and export-dialog opening; saved geometry was not edited. Storage now has an injectable local adapter with revision checks and backup-before-write behavior, covered by conflict/quota/recovery tests. All fourteen regression scripts, type checking and production build pass. Supabase was selected for later cloud implementation and explicitly deferred; CLOUD_ARCHITECTURE.md records the contract. No authentication, cloud sync, billing or AI purchasing is implemented. Physical-device gestures, exported-image inspection and full model visual coverage remain release gaps. No push or deployment performed.
+
+Fourteenth local increment: corner cabinets gain separate L-shaped worktops, fronts, handles and plinths; kitchen sinks and bathroom vanities gain recessed bowls, drains and taps; single/double fridges and dishwashers gain separate doors, handles, lower panels and controls. Geometry scales inside the saved dimensions, including tap height. Existing IDs and file format remain unchanged. Type checking and production build pass with the existing bundle warning. Read-only browser checks at 390 x 844 confirmed the saved scene renders, Layers/inspector replace the mobile control deck, and the existing fridge inspector expands without captured console errors. The saved plan was not edited. Close-up verification of each new model, 2D gesture regression and physical-device testing remain outstanding. No push or deployment performed.
+
+Thirteenth local increment: tables now use rounded tops, tapered legs and aprons. Wardrobes, nightstands, TV cabinets, base cabinets, kitchen counters and islands use separate fronts, handles, recessed plinths and tops. All parts scale proportionally inside the editable bounds; selected finishes drive carcass/front/table materials while kitchen tops and hardware use neutral accents. Existing saved IDs and dimensions are unchanged. Type checking and production build pass (existing bundle warning). Browser preview rendered the updated cabinetry without captured console errors; exhaustive per-model visual checks and physical-device performance remain outstanding. Corner cabinets, sinks and appliances retain their earlier geometry. No push or deployment performed.
+
+Twelfth local increment: sofas now have rounded, separately modelled seat/back cushions, arms and inset feet; beds have an upholstered headboard, mattress, duvet, pillows and matching throw. Proportional parts retain the saved footprint and total height. Added sand, sage and clay upholstery; bed/sofa pickers offer fabric/leather while retaining a previously selected legacy finish. Material controls have 44px touch targets and accessible swatch labels. Mobile item control pills are hidden to avoid overlapping the inspector. Type checking and production build pass, with the existing bundle-size warning. Browser checks confirmed sofa rendering, desktop sage selection and mobile clay selection; no captured console errors. Comprehensive bed visual isolation, physical-device performance and remaining furniture families are outstanding. No push or deployment performed.
+
+Eleventh local increment: the 3D preview defaults to plain material colours, a light neutral background, softer contact shadows and hemisphere lighting. A 44px finish toggle restores procedural wall/floor patterns. The grid starts hidden, pixel ratio is capped at 1.5 and the external city environment dependency is removed. More item surfaces use their selected material roughness/metalness. Type checking and production build pass (the existing large-bundle warning remains). Desktop and 390 x 844 browser checks verified rendering, toggle state and corrected mobile header clearance. Furniture geometry refinement, physical-device performance and comprehensive material coverage remain outstanding. No push or deployment performed.
+
+Tenth local increment: attached openings are checked for overlapping horizontal spans on the same wall. Invalid edits retain the previous document and display a rejection message without adding a history entry. Project import now validates attachment fit, position and overlapping spans before replacement. Stacked openings are intentionally unsupported by the current mesh and are rejected as overlapping spans regardless of elevation. Legacy unattached openings still use the original proximity behavior. Type checking, all thirteen regression scripts (including new overlap/import/error assertions), and production build pass. Browser verification of attachment/error controls and mobile panel placement remains outstanding; these tests validate reducer and geometry behavior. No push or deployment performed.
+
+Ninth local increment: doors/windows expose explicit attach-to-nearest-wall and detach actions. Attachments persist wall ID and centre offset in centimetres, align to the host angle, follow wall translation/rotation, and constrain item movement along the host. Wall/item changes that cannot fit the opening's width/height are rejected atomically; removing a wall detaches its openings. Wall cutouts for attached openings are restricted to their host. Optional attachment fields round-trip through the versioned file format; legacy unbound items retain proximity-based cutouts. Type checking, thirteen regression scripts, and production build pass. Browser attachment workflow verification, overlap prevention between openings, more helpful feedback for rejected edits, and comprehensive import fit validation remain outstanding. No push or deployment performed.
+
+Eighth local increment: corner railings have independent arm handles. Lengths snap to grid increments along each local axis; the corner, right angle, opposite arm, rotation and height remain fixed. The formerly inconsistent 2D/3D corner representations now use a common L-shaped layout with rails and three posts. Existing width/depth fields remain the two arm lengths; saved project format is unchanged. Type checking, corner/straight railing regression tests and production build pass. Browser dragging changed a 1 × 1 m corner railing to 3 × 1 m. Real-phone touch and final 3D visual review remain outstanding. Attached doors/windows are the next architectural increment. Changes remain local.
+
+Seventh local increment: wall property updates, 2D/3D nudge controls, and rotation actions now route through a shared connection-preserving update function. Non-geometric finishes affect only the selected wall; endpoint changes propagate to coincident neighbours and collapse checks remain atomic. Rotation no longer rounds endpoints to whole world units. Type checking, focused wall-command regression tests, and build pass. A browser check with two adjoining walls confirmed that dragging their shared corner keeps them joined. Explicit node identities, openings attachment, and corner railing editing remain separate work. No push or deployment performed.
+
+Sixth local increment: 2D wall endpoint and segment drags preserve connections between coincident endpoints, resolved from the gesture's original geometry. Moving a segment carries its two junctions while adjoining segments stretch; multiple walls at one junction move together. Nearby endpoints are not automatically joined, and moves collapsing any affected segment to 10 world units or less are rejected. Type checking, eleven regression scripts, and production build pass. This is geometric endpoint connectivity for 2D dragging, not persistent junction IDs or interior intersection splitting. Browser gesture verification, corner railing editing, explicit opening attachment, and equivalent connected commands in 3D/numeric controls remain outstanding. Changes remain local.
+
+Fifth local increment: straight railings expose two 2D endpoint handles with screen-sized hit targets. Dragging an endpoint snaps it to the current grid while preserving the opposite endpoint, updates centre/length/rotation, and preserves height/depth/finish. A length label provides feedback; Alt supports unsnapped desktop adjustments. The existing item representation and 3D renderer remain compatible, so no file migration is needed. Type checking, ten regression scripts and build pass; a browser drag extended 1 m to 4 m and one Undo restored 1 m. Corner railings, shared wall nodes and attached openings are still outstanding; this is the straight-railing increment, not completion of all architectural editing. Changes remain local.
+
+Fourth local increment: completed edits autosave on this browser/device with a short debounce and page-hide flush. Startup recovers the saved document; a previous-save backup can restore a cleared plan. Save/recovery errors are visible, and changes from another tab pause writes to avoid silent overwrites. Export uses a versioned envelope; import supports existing unversioned files and validates collection shape, size, IDs, coordinates, dimensions, floor corner counts, and catalog types before atomic replacement. This is structural validation, not polygon self-intersection validation. Type checking, nine regression scripts, and build pass. Browser tests confirmed furniture survives reload and Restore previous save recovers it after Clear. Storage-quota failure and real-device lifecycle behavior still need dedicated testing. Autosave is local, not cloud storage; history and UI selection are not persisted. No push or deployment performed.
+
+Third local increment: mobile 3D now uses separate Move, Rotate, Height, and Camera sections with explicit centimetre movement steps (1/5/10/25/50), room-axis buttons, 15/45-degree rotations, and 10 cm height adjustments. Scene gestures remain camera navigation. Primary drawers hide the control deck and block scene pointer/camera and 3D shortcut interaction. The App no longer also processes view-specific 2D shortcuts in 3D. Mobile gizmos are excluded at the parent render boundary. Phone-width browser checks exercised movement, elevation, undo, and inspector isolation; the control sheet was visually inspected at 390 × 844. Type checking, eight existing regression scripts, and build pass. Real-device orbit/pinch verification, camera fitting improvements, and saving/recovery remain outstanding. No push or deployment performed.
+
+Second local increment: furniture snapping now filters targets by perpendicular proximity, limits attraction at low zoom, reduces target stickiness, and reports grid guides on actual grid lines. Drag initiation uses screen distance. The 2D grid setting is shared with the mobile movement pad and survives view switches; the pad displays 50/25/12.5 cm steps and resets accumulated movement when its context changes. Short taps and held movement no longer run together, and pointer cancellation does not trigger a tap nudge. Type checking, all eight regression scripts, and production build pass. Phone-width browser checks confirmed pad labels track changes from 25 to 12.5 cm. Physical-device gesture feel and the next 3D controls phase remain to be verified/implemented. Changes remain local.
+
+Implementation progress: the first local foundation increment replaces per-collection history with a document reducer, groups pointer edits into transactions, caps undo history at 100 entries, makes clear/delete/import atomic, and restores floor duplication. Mobile primary panels now share one active-panel state. The mobile movement pad opens on demand above the action bar, and the 2D background handler ignores interactive controls. Type checking, seven regression scripts, and the production build pass; desktop floor duplication and clear/undo/redo and phone-width inspector/catalog switching were exercised in the browser. Full touch cancellation, 3D input isolation, snapping redesign, unit corrections, schema validation, and autosave remain outstanding. This increment is local and has not been pushed or deployed.
+
 The project has a substantial working foundation: a 2D editor, a 3D preview, an asset catalog, material controls, floor editing, measurements, comments, layers, keyboard shortcuts, mobile components, and JSON export/import. The highest-value update is to make these features reliable and consistent before adding more features or visual effects.
 
 The principal risks are incorrect history, inconsistent physical units, fragile editing gestures, and loss of unsaved work. Visual polish should follow these fixes so it presents trustworthy behavior.
@@ -177,8 +207,89 @@ Completion: documented load and interaction measurements meet agreed budgets on 
 | Large representative plan | Measured acceptable loading and interaction on reference hardware. |
 | Keyboard and small-screen use | Reachable controls, visible focus, no obstructed essential actions. |
 
-## Recommended delivery order
+## Revised delivery order: mobile-first product direction
 
-Deliver steps 1–5 as the reliability release. Deliver steps 6–7 as the precision and rendering release. Deliver steps 8–10 as the presentation and release-quality pass. Each step should be a small set of reviewable changes with its own acceptance evidence.
+This sequence supersedes the original implementation order above. The numbered audit steps remain technical work packages, but mobile controls and panel coordination must be addressed early, not deferred to a final visual pass. GitHub baseline commit `8703d27` has been pushed; Netlify configuration is present, but a live deployment has not been verified.
+
+### A. Define mobile interaction and panel behavior
+
+Before changing gestures, document the action map for 2D and 3D and build a small reviewable mobile control prototype. Cover selecting, moving, rotating, resizing, drawing, panning/orbiting, zooming, numeric entry, undo, and cancellation. Use shared terms and consistent action placement between views while keeping camera gestures specific to each view.
+
+- Separate camera navigation from object manipulation with a visible editing state and clear handles. Avoid assigning the same gesture to two simultaneous actions.
+- Specify which panels can coexist. On phones, use one primary drawer/sheet at a time; opening the catalog, layers, or inspector should deliberately replace or collapse the previous primary panel.
+- Keep selection and unfinished property values stable when switching panels. Explicitly commit or cancel an active gesture before changing its context.
+- Prevent panel taps, scrolling, sliders, and text entry from reaching the canvas or activating editor shortcuts. Scrolling a panel must never zoom or move the scene.
+- Size the usable canvas around panels and the on-screen keyboard. Position selection controls and camera tools within unobscured space, respecting device safe areas.
+- Define consistent close/back behavior. Closing a panel should not unexpectedly delete, deselect, move an object, or change the active tool.
+- Use visible labels or contextual explanations for unfamiliar controls and reachable touch targets. Avoid relying on hover or keyboard shortcuts for essential actions.
+
+Acceptance: a phone-sized walkthrough can complete basic 2D and 3D actions without overlapping controls, accidental canvas edits, or ambiguous gesture ownership. Include panel switching, keyboard appearance, rotation, and cancellation scenarios. Validate proposed touch behavior on real devices during implementation.
+
+### B. Build the state, units, and command foundation
+
+Implement original steps 1–3 with the interaction contract from A: atomic document updates, one undo per gesture, consistent units, and a separate UI state model for selection, view, gesture, and active panel. Add regressions for the known failures. Define boundaries between the editor document, persistence adapter, and future server services; do not introduce billing infrastructure into gesture code.
+
+Acceptance: panels and canvas share an explicit interaction state, cancelled edits restore their start, and undo restores the entire document consistently.
+
+### C. Deliver reliable mobile 2D editing and snapping
+
+Implement the 2D control layout from A and relevant fixes from original step 5. Make grid, wall, and object alignment understandable, with visible snap feedback and a clear way to adjust snapping. Tune acquisition/release behavior at different zoom levels and prevent distant objects from attracting a drag unexpectedly. Preserve rigid group and floor transforms. Complete duplication and numeric adjustments.
+
+Acceptance: draw, select, move, resize, rotate, duplicate, and undo on a phone; panel actions never modify the canvas behind them; the scene does not jump when snap targets change.
+
+### D. Deliver reliable mobile 3D editing
+
+Reuse the command and panel behavior from B/C. Provide clear selection, ground-plane movement, separate elevation adjustment, rotation, and precise numeric input. Keep orbit/pinch navigation from fighting object handles. Correct focus, reset, and camera fitting using the space left by open panels. Preserve useful selection and view state across 2D/3D switches.
+
+Acceptance: select, move, rotate, raise/lower, and undo an object while opening and closing the inspector; the camera remains stable during object editing, and navigation never moves an object accidentally.
+
+### E. Protect saved projects
+
+Implement original step 4: versioned documents, validation, atomic imports, local autosave, recovery, and save feedback. Establish migrations before introducing new architectural entity types. Keep persistence behind an interface so cloud storage can be added later.
+
+Acceptance: mobile refresh/recovery and export/import preserve geometry and finishes; malformed documents cannot partially replace a project.
+
+### F. Add architectural elements and connected geometry
+
+Introduce railings as linear architectural elements with two endpoint handles in 2D, grid snapping, exact length, and editable height/thickness. Reuse appropriate wall interaction behavior without assuming railings are solid walls. Render changes consistently in 3D. Then add connected wall junctions and explicitly attached doors/windows in separate changes with migrations.
+
+Acceptance: extending either railing endpoint preserves the other endpoint, produces the expected length, and is one undoable action in both views.
+
+### G. Improve the minimalist 3D material system
+
+Replace visually noisy defaults with restrained colors, subtle finishes, and soft lighting. Define supported material properties centrally and make every exposed option affect the renderer. Establish mobile rendering budgets before increasing model detail. Retain a small consistent set of wood, fabric, metal, glass, and painted finishes.
+
+Acceptance: the same finish behaves consistently across applicable objects; material previews match the rendered scene; lighting keeps shapes readable on a phone.
+
+### H. Improve furniture shapes and appropriate variants
+
+Improve furniture category by category, beginning with frequently used pieces. Add better proportions, rounded edges, legs, cushions, and other silhouette details within the mobile performance budget. Give each category suitable color/material choices rather than an unrestricted generic texture list. Keep the catalog definition, dimensions, controls, and renderer synchronized.
+
+Acceptance: each revised asset has correct dimensions, predictable selection bounds, appropriate finish options, and acceptable mobile interaction performance.
+
+### I. Finish export, accessibility, performance, and release checks
+
+Complete original steps 9–10 and remaining visual/accessibility work from step 8. Performance, accessibility, and mobile checks also apply to each earlier phase; this phase integrates the complete product. Verify real-device touch and exported artifacts, not only automated helper tests.
+
+### J. Add accounts and cloud projects, then define paid AI planning
+
+Extend the persistence boundary established in B/E with authenticated, user-isolated cloud projects. Enforce ownership and authorization on the server. Agree on the paid AI workflow before implementing purchases or subscriptions: token pricing, failed-job refunds, usage limits, and how an AI proposal becomes an editable project remain product decisions for a later discussion.
+
+When implemented, token balances, purchase verification, usage accounting, and AI credentials belong on the server. Use durable jobs and idempotent accounting to prevent duplicate charges or duplicate plans. Validate AI output against the document schema and apply an accepted proposal through the same undoable document commands. Do not commit to a database, billing provider, or subscription design until requirements are settled.
+
+## Additional mobile acceptance checks
+
+| Scenario | Required result |
+|---|---|
+| Open catalog while inspector is open | Deliberate panel replacement/collapse; no blocked controls or lost selection. |
+| Scroll layers or change a property slider | Only the panel responds; no canvas movement, drawing, or zoom. |
+| Open numeric field and phone keyboard | Active field and essential confirm/cancel controls remain reachable. |
+| Orbit in 3D while an object is selected | Camera moves; object stays fixed unless explicit manipulation is active. |
+| Drag a 3D object handle | Object moves on the intended plane/axis; camera does not orbit. |
+| Switch 2D/3D or panels during an operation | Defined commit/cancel behavior; no stuck drag or unexpected history entry. |
+| Rotate device with a drawer open | Layout adapts without losing the project, values, or essential controls. |
+| Extend a railing endpoint | Grid-aware exact length; stable opposite endpoint; one undo step. |
+
+Start with A and B, then ship C as the first usable editing improvement. Follow with D before investing in visual richness. Each phase should remain a small set of reviewable changes with its own acceptance evidence.
 
 The best use of a stronger coding model here is to trace behavior across state, geometry, rendering, and input, then implement and verify these changes end to end. Model choice alone does not make an untested editor reliable, and these improvements should not be described as exclusive to one model.

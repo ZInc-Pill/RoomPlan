@@ -73,7 +73,7 @@ export function useFurnitureInteraction({
   selectedItemIdsRef.current = selectedItemIds;
 
   const handleItemPointerDown = useCallback((e: React.PointerEvent, item: PlacedItem) => {
-    if (mode !== 'SELECT') return;
+    if (mode !== 'SELECT' || e.button !== 0 || !e.isPrimary) return;
     e.stopPropagation();
     selectItem(e, item.id);
     const pt = getPoint(e);
@@ -101,7 +101,7 @@ export function useFurnitureInteraction({
     }
 
     if (!draggingItem.hasMoved) {
-      if (Math.hypot(pt.x - draggingItem.startX, pt.y - draggingItem.startY) > FURNITURE_DRAG_THRESHOLD) {
+      if (Math.hypot(pt.x - draggingItem.startX, pt.y - draggingItem.startY) * zoom > FURNITURE_DRAG_THRESHOLD) {
         setDraggingItem(prev => (prev ? { ...prev, hasMoved: true } : null));
       } else {
         return { handled: true };

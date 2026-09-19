@@ -1,6 +1,10 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import { getProceduralTexture } from '../utils/proceduralTextures';
+import { KitchenFixtures, KITCHEN_FIXTURE_IDS } from './KitchenFixtures';
+import { CaseFurniture, CASE_FURNITURE_IDS } from './CaseFurniture';
+import { UpholsteredFurniture } from './UpholsteredFurniture';
+import React, { useMemo, useState, useRef, useEffect, useCallback, createContext, useContext } from 'react';
 import { Canvas, useThree, useFrame, ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, Environment, ContactShadows, Edges, Html } from '@react-three/drei';
+import { OrbitControls, ContactShadows, Edges, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { Wall, PlacedItem, Floor, CommentType } from '../types';
 import { ITEM_CATALOG } from '../catalog';
@@ -11,7 +15,7 @@ import {
   getFloorMaterial, 
   getWallMaterial, 
   getItemFinish, 
-  getProceduralTexture, 
+
   FLOOR_MATERIALS, 
   WALL_MATERIALS, 
   ITEM_FINISHES 
@@ -44,7 +48,10 @@ import {
 import { BlenderMoveGizmo } from './BlenderMoveGizmo';
 import { UniversalJoystick } from './UniversalJoystick';
 
+const MinimalStyleContext = createContext(true);
+
 interface Canvas3DProps {
+  interactionBlocked?: boolean;
   walls: Wall[];
   floors: Floor[];
   items: PlacedItem[];
@@ -122,8 +129,9 @@ function Floor3D({
     return Math.abs(a / 2) / 1600;
   }, [floor.points]);
 
+  const minimalStyle = useContext(MinimalStyleContext);
   const matDef = useMemo(() => getFloorMaterial(floor.material), [floor.material]);
-  const texture = useMemo(() => floor.material ? getProceduralTexture(floor.material) : null, [floor.material]);
+  const texture = useMemo(() => !minimalStyle && floor.material ? getProceduralTexture(floor.material) : null, [floor.material, minimalStyle]);
 
   const floorGeometry = useMemo(() => {
     const geom = new THREE.ShapeGeometry(shape);
@@ -151,7 +159,7 @@ function Floor3D({
         }}
       >
         <meshStandardMaterial 
-          color={texture ? '#ffffff' : (floor.color || matDef.color)} 
+          color={texture ? '#ffffff' : (floor.material ? matDef.color : floor.color || '#e7e5e0')}
           map={texture}
           roughness={matDef.roughness} 
           metalness={matDef.metalness}
@@ -175,7 +183,7 @@ function Floor3D({
               <span className="bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">
                 {areaM2.toFixed(1)} m²
               </span>
-              
+
               <div className="hidden sm:flex items-center gap-1.5">
                 {onDuplicate && (
                   <>
@@ -245,8 +253,9 @@ function Wall3D({
   const wallHeight = wall.height || 150;
   const wallThickness = Math.max(4, Number.isFinite(wall.thickness) ? wall.thickness : 8);
 
+  const minimalStyle = useContext(MinimalStyleContext);
   const matDef = useMemo(() => getWallMaterial(wall.material), [wall.material]);
-  const wallTexture = useMemo(() => wall.material ? getProceduralTexture(wall.material) : null, [wall.material]);
+  const wallTexture = useMemo(() => !minimalStyle && wall.material ? getProceduralTexture(wall.material) : null, [wall.material, minimalStyle]);
   const wallColor = wall.color || matDef.color || '#e5e7eb';
 
   // Smooth Opacity Interpolation
@@ -261,7 +270,7 @@ function Wall3D({
   useFrame((_, delta) => {
     const goal = isSelected ? Math.max(targetOpacity, 0.85) : targetOpacity;
     const diff = goal - currentOpacityRef.current;
-    
+
     if (Math.abs(diff) > 0.002) {
       currentOpacityRef.current += diff * (delta * 6.0); // smooth damping
       const eff = currentOpacityRef.current;
@@ -344,15 +353,15 @@ function Wall3D({
 
         const hItem = cmToPx(hole.item.height || typeInfo.height);
         const elevItem = cmToPx(hole.item.elevation || 0);
-        
+
         const wx = wall.end.x - wall.start.x;
         const wy = wall.end.y - wall.start.y;
-        
+
         const startX = wall.start.x + wx * hole.t1;
         const startY = wall.start.y + wy * hole.t1;
         const endX = wall.start.x + wx * hole.t2;
         const endY = wall.start.y + wy * hole.t2;
-        
+
         const length = Math.hypot(endX - startX, endY - startY);
         const angle = Math.atan2(wy, wx);
         const centerX = (startX + endX) / 2;
@@ -417,7 +426,7 @@ function Wall3D({
           <mesh 
             position={[wall.start.x, 8, wall.start.y]}
             castShadow
-            
+
           >
             <sphereGeometry args={[10, 24, 24]} />
             <meshStandardMaterial color="#4f46e5" roughness={0.3} metalness={0.2} emissive="#6366f1" emissiveIntensity={0.5} />
@@ -431,7 +440,7 @@ function Wall3D({
           <mesh 
             position={[wall.end.x, 8, wall.end.y]}
             castShadow
-            
+
           >
             <sphereGeometry args={[10, 24, 24]} />
             <meshStandardMaterial color="#4f46e5" roughness={0.3} metalness={0.2} emissive="#6366f1" emissiveIntensity={0.5} />
@@ -456,7 +465,7 @@ function Wall3D({
                 <span className="bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded text-[10px] font-mono">
                   {Math.round(wallThickness * 2.5)}cm thk • {(wallHeight / 50).toFixed(1)}m h
                 </span>
-                
+
                 {/* Action buttons hidden on mobile since Mobile3DControlDeck provides them */}
                 <div className="hidden sm:flex items-center gap-1.5">
                   {onUpdateThickness && (
@@ -539,6 +548,7 @@ function Item3D({
   item,
   isSelected,
   isHovered,
+  showControls = true,
   onSelect,
   onHover,
   onRotate,
@@ -549,6 +559,7 @@ function Item3D({
   item: PlacedItem;
   isSelected: boolean;
   isHovered: boolean;
+  showControls?: boolean;
   onSelect: () => void;
   onHover: (hover: boolean) => void;
   onRotate?: (delta: number) => void;
@@ -563,8 +574,9 @@ function Item3D({
   const h = item.height || typeInfo.height;
   const d = item.depth || typeInfo.depth;
 
+  const minimalStyle = useContext(MinimalStyleContext);
   const finishDef = useMemo(() => getItemFinish(item.material), [item.material]);
-  const itemTexture = useMemo(() => item.material ? getProceduralTexture(item.material) : null, [item.material]);
+  const itemTexture = useMemo(() => !minimalStyle && item.material ? getProceduralTexture(item.material) : null, [item.material, minimalStyle]);
   const color = item.color || (finishDef ? finishDef.color : typeInfo.color);
   const roughness = finishDef ? finishDef.roughness : (typeInfo.shape === 'rug' ? 0.95 : 0.7);
   const metalness = finishDef ? finishDef.metalness : 0.05;
@@ -588,7 +600,7 @@ function Item3D({
         e.stopPropagation();
         onSelect();
       }}
-      
+
     >
       {/* 3D Visual Selection Ring & Forward Indicator Chevron */}
       {isSelected && (
@@ -611,7 +623,7 @@ function Item3D({
       )}
 
       {/* Shapes Rendering */}
-      {['box', 'tv_cabinet', 'room_divider'].includes(typeInfo.shape) && (
+      {['box', 'tv_cabinet', 'room_divider'].includes(typeInfo.shape) && !CASE_FURNITURE_IDS.includes(item.typeId) && !KITCHEN_FIXTURE_IDS.includes(item.typeId) && (
         <mesh position={[0, h/2, 0]} castShadow receiveShadow>
           <boxGeometry args={[w, h, d]} />
           <meshStandardMaterial 
@@ -624,56 +636,9 @@ function Item3D({
         </mesh>
       )}
 
-      {(typeInfo.shape === 'base_cabinet' || typeInfo.shape === 'dishwasher') && (
-        <group>
-          <mesh position={[0, h/2 - 2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w, h - 4, d]} />
-            <meshStandardMaterial color={color} roughness={0.8} />
-          </mesh>
-          <mesh position={[0, h - 2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w + 2, 4, d + 2]} />
-            <meshStandardMaterial color="#cbd5e1" roughness={0.3} metalness={0.2} />
-          </mesh>
-        </group>
-      )}
-
-      {typeInfo.shape === 'kitchen_island' && (
-        <group>
-          <mesh position={[0, h/2 - 3, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w - 10, h - 6, d - 10]} />
-            <meshStandardMaterial color={color} roughness={0.8} />
-          </mesh>
-          <mesh position={[0, h - 3, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w, 6, d]} />
-            <meshStandardMaterial color="#cbd5e1" roughness={0.3} metalness={0.1} />
-          </mesh>
-        </group>
-      )}
-
-      {typeInfo.shape === 'kitchen_sink' && (
-        <group>
-          <mesh position={[0, h/2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w, h, d]} />
-            <meshStandardMaterial color="#cbd5e1" roughness={0.4} metalness={0.8} />
-          </mesh>
-          <mesh position={[0, h + 1, -d*0.3]}>
-            <cylinderGeometry args={[2, 2, 10, 16]} />
-            <meshStandardMaterial color="#94a3b8" roughness={0.2} metalness={0.9} />
-          </mesh>
-        </group>
-      )}
-
-      {typeInfo.shape === 'corner_cabinet' && (
-        <group>
-          <mesh position={[-w/4, h/2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w/2, h, d]} />
-            <meshStandardMaterial color={color} roughness={0.8} />
-          </mesh>
-          <mesh position={[w/4, h/2, -d/4]} castShadow receiveShadow>
-            <boxGeometry args={[w/2, h, d/2]} />
-            <meshStandardMaterial color={color} roughness={0.8} />
-          </mesh>
-        </group>
+      {KITCHEN_FIXTURE_IDS.includes(item.typeId) && (
+        <KitchenFixtures typeId={item.typeId} width={w} height={h} depth={d}
+          color={color} roughness={roughness} metalness={metalness} />
       )}
 
       {typeInfo.shape === 'railing' && (
@@ -681,30 +646,33 @@ function Item3D({
           {/* Top rail */}
           <mesh position={[0, h - 2.5, 0]} castShadow receiveShadow>
             <boxGeometry args={[w, 5, d]} />
-            <meshStandardMaterial color={color} roughness={0.6} />
+            <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
           </mesh>
           {/* Posts */}
           <mesh position={[-w/2 + 2.5, h/2, 0]} castShadow receiveShadow>
             <boxGeometry args={[5, h, d]} />
-            <meshStandardMaterial color={color} roughness={0.6} />
+            <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
           </mesh>
           <mesh position={[w/2 - 2.5, h/2, 0]} castShadow receiveShadow>
             <boxGeometry args={[5, h, d]} />
-            <meshStandardMaterial color={color} roughness={0.6} />
+            <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
           </mesh>
         </group>
       )}
 
       {typeInfo.shape === 'corner_railing' && (
         <group>
-          <mesh position={[-w/4, h/2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w/2, h, d/4]} />
-            <meshStandardMaterial color={color} roughness={0.6} opacity={0.5} transparent />
+          <mesh position={[0, h - 1, -d / 2]} castShadow receiveShadow>
+            <boxGeometry args={[w, 2, 2]} /><meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
           </mesh>
-          <mesh position={[w/4, h/2, -d/4]} castShadow receiveShadow>
-            <boxGeometry args={[w/4, h, d/2]} />
-            <meshStandardMaterial color={color} roughness={0.6} opacity={0.5} transparent />
+          <mesh position={[-w / 2, h - 1, 0]} castShadow receiveShadow>
+            <boxGeometry args={[2, 2, d]} /><meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
           </mesh>
+          {[[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2]].map(([x, z], index) => (
+            <mesh key={index} position={[x, h / 2, z]} castShadow receiveShadow>
+              <boxGeometry args={[2, h, 2]} /><meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
+            </mesh>
+          ))}
         </group>
       )}
 
@@ -712,11 +680,11 @@ function Item3D({
         <group>
           <mesh position={[0, h * 0.2, 0]} castShadow receiveShadow>
             <boxGeometry args={[w, h * 0.4, d]} />
-            <meshStandardMaterial color={color} roughness={0.8} />
+            <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
           </mesh>
           <mesh position={[0, h * 0.7, -d * 0.35]} castShadow receiveShadow>
             <boxGeometry args={[w, h * 0.6, d * 0.3]} />
-            <meshStandardMaterial color={color} roughness={0.8} />
+            <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
           </mesh>
         </group>
       )}
@@ -734,81 +702,15 @@ function Item3D({
         </mesh>
       )}
 
-      {typeInfo.shape === 'bed' && (
-        <group>
-          <mesh position={[0, h * 0.2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w, h * 0.4, d]} />
-            <meshStandardMaterial 
-              color={color} 
-              roughness={0.8} 
-              emissive={isSelected ? '#6366f1' : isHovered ? '#818cf8' : '#000000'}
-              emissiveIntensity={isSelected ? 0.3 : isHovered ? 0.15 : 0}
-            />
-            {isSelected && <Edges scale={1.002} threshold={15} color="#4f46e5" />}
-          </mesh>
-          <mesh position={[0, h * 0.6, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w - 5, h * 0.4, d - 5]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.9} />
-          </mesh>
-          <mesh position={[-w * 0.25, h * 0.85, -d/2 + 20]} castShadow receiveShadow>
-            <boxGeometry args={[w * 0.4, h * 0.1, 20]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.9} />
-          </mesh>
-          {w > 120 && (
-            <mesh position={[w * 0.25, h * 0.85, -d/2 + 20]} castShadow receiveShadow>
-              <boxGeometry args={[w * 0.4, h * 0.1, 20]} />
-              <meshStandardMaterial color="#ffffff" roughness={0.9} />
-            </mesh>
-          )}
-        </group>
+      {(typeInfo.shape === 'bed' || typeInfo.shape === 'sofa') && (
+        <UpholsteredFurniture shape={typeInfo.shape} width={w} height={h} depth={d}
+          seats={item.typeId === 'liv_sofa_3' ? 3 : 2} color={color} roughness={roughness}
+          metalness={metalness} selected={isSelected} hovered={isHovered} />
       )}
 
-      {typeInfo.shape === 'sofa' && (
-        <group>
-          <mesh position={[0, h * 0.25, 10]} castShadow receiveShadow>
-            <boxGeometry args={[w - 30, h * 0.5, d - 20]} />
-            <meshStandardMaterial 
-              color={color} 
-              roughness={0.8} 
-              emissive={isSelected ? '#6366f1' : isHovered ? '#818cf8' : '#000000'}
-              emissiveIntensity={isSelected ? 0.3 : isHovered ? 0.15 : 0}
-            />
-            {isSelected && <Edges scale={1.002} threshold={15} color="#4f46e5" />}
-          </mesh>
-          <mesh position={[0, h * 0.5, -d/2 + 10]} castShadow receiveShadow>
-            <boxGeometry args={[w, h, 20]} />
-            <meshStandardMaterial color={color} roughness={0.8} />
-          </mesh>
-          <mesh position={[-w/2 + 7.5, h * 0.375, 0]} castShadow receiveShadow>
-            <boxGeometry args={[15, h * 0.75, d]} />
-            <meshStandardMaterial color={color} roughness={0.8} />
-          </mesh>
-          <mesh position={[w/2 - 7.5, h * 0.375, 0]} castShadow receiveShadow>
-            <boxGeometry args={[15, h * 0.75, d]} />
-            <meshStandardMaterial color={color} roughness={0.8} />
-          </mesh>
-        </group>
-      )}
-
-      {typeInfo.shape === 'table' && (
-        <group>
-          <mesh position={[0, h - 2.5, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w, 5, d]} />
-            <meshStandardMaterial 
-              color={color} 
-              roughness={0.6} 
-              emissive={isSelected ? '#6366f1' : isHovered ? '#818cf8' : '#000000'}
-              emissiveIntensity={isSelected ? 0.3 : isHovered ? 0.15 : 0}
-            />
-            {isSelected && <Edges scale={1.002} threshold={15} color="#4f46e5" />}
-          </mesh>
-          {[-1, 1].map(x => [-1, 1].map(z => (
-            <mesh key={`${x}-${z}`} position={[x * (w/2 - 5), h/2 - 2.5, z * (d/2 - 5)]} castShadow receiveShadow>
-              <cylinderGeometry args={[2, 2, h - 5, 16]} />
-              <meshStandardMaterial color="#333333" metalness={0.8} roughness={0.2} />
-            </mesh>
-          )))}
-        </group>
+      {CASE_FURNITURE_IDS.includes(item.typeId) && (
+        <CaseFurniture typeId={item.typeId} width={w} height={h} depth={d} color={color}
+          roughness={roughness} metalness={metalness} selected={isSelected} hovered={isHovered} />
       )}
 
       {typeInfo.shape === 'door' && (
@@ -847,7 +749,7 @@ function Item3D({
           </mesh>
           <mesh position={[0, h/2, 0]} castShadow receiveShadow>
             <boxGeometry args={[w - 10, h - 10, d + 2]} />
-            <meshStandardMaterial color={color} roughness={0.1} metalness={0.9} opacity={0.6} transparent />
+            <meshStandardMaterial color={color} roughness={roughness} metalness={0.9} opacity={0.6} transparent />
           </mesh>
         </group>
       )}
@@ -885,12 +787,12 @@ function Item3D({
           </mesh>
           <mesh position={[0, h * 0.6, -d/2 + 10]} castShadow receiveShadow>
             <boxGeometry args={[w, h * 0.8, 20]} />
-            <meshStandardMaterial color={color} roughness={0.2} />
+            <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
           </mesh>
         </group>
       )}
 
-      {typeInfo.shape === 'counter' && (
+      {typeInfo.shape === 'counter' && !CASE_FURNITURE_IDS.includes(item.typeId) && !KITCHEN_FIXTURE_IDS.includes(item.typeId) && (
         <group>
           <mesh position={[0, h/2 - 2.5, 0]} castShadow receiveShadow>
             <boxGeometry args={[w, h - 5, d]} />
@@ -941,7 +843,7 @@ function Item3D({
           </mesh>
 
           {/* Direct 3D In-Scene Control Pill */}
-          <Html position={[0, h + 38, 0]} center zIndexRange={[100, 0]}>
+          {showControls && <Html position={[0, h + 38, 0]} center zIndexRange={[100, 0]}>
             <div className="flex flex-col items-center pointer-events-auto select-none animate-in fade-in zoom-in-95 duration-150">
               <div className="bg-slate-900/95 backdrop-blur-md text-white px-3 py-1.5 rounded-xl shadow-2xl border border-slate-700/80 flex items-center gap-2 whitespace-nowrap text-xs">
                 <span className="font-bold text-white tracking-tight">{typeInfo.name}</span>
@@ -1037,7 +939,7 @@ function Item3D({
               </div>
               <div className="w-2 h-2 rotate-45 bg-slate-900 border-r border-b border-slate-700 -mt-1" />
             </div>
-          </Html>
+          </Html>}
         </group>
       )}
     </group>
@@ -1085,7 +987,7 @@ function WallsCutawayManager({
 
     // 1. Gather Scene Targets (Interior Points)
     const targets: { x: number, z: number, weight: number }[] = [];
-    
+
     // Calculate bounding box of walls
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     walls.forEach(w => {
@@ -1097,7 +999,7 @@ function WallsCutawayManager({
     if (minX === Infinity) {
       minX = -100; maxX = 100; minZ = -100; maxZ = 100;
     }
-    
+
     const centerX = (minX + maxX) / 2;
     const centerZ = (minZ + maxZ) / 2;
     const spanX = maxX - minX;
@@ -1145,7 +1047,7 @@ function WallsCutawayManager({
 
     walls.forEach(wall => {
       let obstructionScore = 0;
-      
+
       const wx1 = wall.start.x;
       const wz1 = wall.start.y;
       const wx2 = wall.end.x;
@@ -1154,7 +1056,7 @@ function WallsCutawayManager({
 
       const s2_x = wx2 - wx1;
       const s2_z = wz2 - wz1;
-      
+
       targets.forEach(target => {
         // Ray from Camera to Target
         const s1_x = target.x - cx;
@@ -1192,15 +1094,15 @@ function WallsCutawayManager({
       // Side walls remain more opaque. 
       // facingMult ranges from 0.25 (edge-on) to 1.0 (head-on)
       const facingMult = 0.25 + 0.75 * Math.pow(facing, 1.2);
-      
+
       const finalObstruction = clampedScore * facingMult;
 
       // Smoothstep easing for a refined fade curve
       const inv = 1.0 - finalObstruction; 
       const ease = inv * inv * (3 - 2 * inv);
-      
+
       let targetOpacity = MIN_CUTAWAY_OPACITY + ease * (MAX_CUTAWAY_OPACITY - MIN_CUTAWAY_OPACITY);
-      
+
       // Keep purely opaque if completely unobstructed
       if (obstructionScore === 0) targetOpacity = MAX_CUTAWAY_OPACITY;
 
@@ -1287,7 +1189,7 @@ function CameraController({
   const { camera } = useThree();
   const prevPreset = useRef(preset);
   const prevFocus = useRef(focusPos);
-  
+
   // Initial camera setup
   useEffect(() => {
     if (controlsRef.current) {
@@ -1323,7 +1225,7 @@ function CameraController({
       // If preset changed OR we just cleared focus, reset to default target based on preset
       const cx = defaultTarget[0];
       const cz = defaultTarget[2];
-      
+
       if (preset === 'top') {
         const topDist = Math.max(1000, defaultSpan * 1.6);
         controlsRef.current.target.set(cx, 0, cz);
@@ -1371,11 +1273,12 @@ export function Canvas3D({
   onCameraPresetChange,
   focusTarget: propFocusTarget,
   onFocusTargetChange,
-  isMobile = false
+  interactionBlocked = false, isMobile = false
 }: Canvas3DProps) {
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [hoveredWallId, setHoveredWallId] = useState<string | null>(null);
-  const [gridVisible, setGridVisible] = useState<boolean>(true);
+  const [gridVisible, setGridVisible] = useState<boolean>(false);
+  const [minimalStyle, setMinimalStyle] = useState(true);
   const [localCameraPreset, setLocalCameraPreset] = useState<'perspective' | 'top' | 'isometric'>('perspective');
   const [localFocusTarget, setLocalFocusTarget] = useState<[number, number, number] | null>(null);
   const [cutawayOverride, setCutawayOverride] = useState<boolean | null>(null);
@@ -1408,7 +1311,7 @@ export function Canvas3D({
   // Center camera on bounding box and compute span
   const { targetX, targetZ, targetSpan } = useMemo(() => {
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    
+
     walls.forEach(w => {
       minX = Math.min(minX, w.start.x, w.end.x);
       maxX = Math.max(maxX, w.start.x, w.end.x);
@@ -1473,24 +1376,24 @@ export function Canvas3D({
     if (snapMode && isContinuous) {
       nudgeAccumulator.current.x += dx;
       nudgeAccumulator.current.y += dy;
-      
+
       const SNAP_GRID = 10; // 10cm snap
-      
+
       let appliedDx = 0;
       let appliedDy = 0;
-      
+
       if (Math.abs(nudgeAccumulator.current.x) >= SNAP_GRID) {
         appliedDx = Math.sign(nudgeAccumulator.current.x) * SNAP_GRID;
         nudgeAccumulator.current.x -= appliedDx;
       }
-      
+
       if (Math.abs(nudgeAccumulator.current.y) >= SNAP_GRID) {
         appliedDy = Math.sign(nudgeAccumulator.current.y) * SNAP_GRID;
         nudgeAccumulator.current.y -= appliedDy;
       }
-      
+
       if (appliedDx === 0 && appliedDy === 0) return;
-      
+
       dx = appliedDx;
       dy = appliedDy;
     }
@@ -1512,7 +1415,7 @@ export function Canvas3D({
   // Keyboard navigation and shortcuts for desktop 3D
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isInteractiveElement(e.target)) return;
+      if (interactionBlocked || isInteractiveElement(e.target) || e.ctrlKey || e.metaKey) return;
 
       const step = e.shiftKey 
         ? (snapMode ? 50 : 10) 
@@ -1568,25 +1471,28 @@ export function Canvas3D({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedItem, selectedWall, selectedFloor, snapMode, onUpdateItem, onUpdateWall, onUpdateFloor, onRotate, onElevate, onDeleteItem, onDeleteWall, onDeleteFloor, onSelect]);
+  }, [interactionBlocked, selectedItem, selectedWall, selectedFloor, snapMode, onUpdateItem, onUpdateWall, onUpdateFloor, onRotate, onElevate, onDeleteItem, onDeleteWall, onDeleteFloor, onSelect]);
 
 
   return (
-    <div className="w-full h-full bg-[#0b0f19] select-none touch-none relative overflow-hidden">
+    <MinimalStyleContext.Provider value={minimalStyle}>
+    <div style={{ pointerEvents: interactionBlocked ? 'none' : undefined }} className="w-full h-full bg-[#f3f2ef] select-none touch-none relative overflow-hidden">
       {/* 3D WebGL Canvas */}
       <Canvas 
         gl={{ preserveDrawingBuffer: true }} 
-        shadows 
+        shadows
+        dpr={[1, 1.5]}
         camera={{ position: [targetX, 600, targetZ + 600], fov: 50, near: 1, far: 20000 }}
       >
-        <color attach="background" args={['#0b0f19']} />
-        
-        <ambientLight intensity={0.55} />
+        <color attach="background" args={['#f3f2ef']} />
+
+        <ambientLight intensity={0.7} />
+        <hemisphereLight args={['#ffffff', '#d4cfc6', 1.1]} />
         <directionalLight 
           position={[600, 1200, 600]} 
-          intensity={1.2} 
+          intensity={1.5}
           castShadow 
-          shadow-mapSize={[2048, 2048]}
+          shadow-mapSize={[1024, 1024]}
           shadow-camera-far={3500}
           shadow-camera-left={-2500}
           shadow-camera-right={2500}
@@ -1594,7 +1500,7 @@ export function Canvas3D({
           shadow-camera-bottom={-2500}
           shadow-bias={-0.001}
         />
-        
+
         <group>
           {/* Floors */}
           {floors.map(f => (
@@ -1628,6 +1534,7 @@ export function Canvas3D({
               item={item} 
               isSelected={selectedItemIds.includes(item.id)}
               isHovered={hoveredItemId === item.id}
+              showControls={!effectiveIsMobile && !interactionBlocked}
               onSelect={() => onSelect([item.id], null, null, null)}
               onHover={(hover) => setHoveredItemId(hover ? item.id : null)}
               onRotate={onRotate}
@@ -1638,7 +1545,7 @@ export function Canvas3D({
           ))}
 
           {/* Desktop-Only Blender Move Arrows Gizmo (Red X-Axis, Green Y-Axis, Blue Z-Axis) */}
-          {selectedItem && (
+          {selectedItem && !effectiveIsMobile && (
             <BlenderMoveGizmo
               item={selectedItem}
               onUpdateItem={onUpdateItem}
@@ -1651,7 +1558,7 @@ export function Canvas3D({
           {/* Subtle Grid Floor Helper */}
           {gridVisible && (
             <gridHelper 
-              args={[5000, 50, '#334155', '#1e293b']} 
+              args={[5000, 50, '#bcb8b0', '#dedbd5']}
               position={[targetX, 0.02, targetZ]} 
             />
           )}
@@ -1666,24 +1573,25 @@ export function Canvas3D({
             }}
           >
             <planeGeometry args={[15000, 15000]} />
-            <meshStandardMaterial color="#0f172a" roughness={0.95} />
+            <meshStandardMaterial color="#e9e7e2" roughness={0.95} />
           </mesh>
 
 
         </group>
 
         <ContactShadows 
-          opacity={0.45} 
+          opacity={0.25}
           scale={5000} 
-          blur={2.5} 
+          blur={3.5}
           far={25} 
           resolution={256} 
           color="#000000" 
           position={[targetX, 0, targetZ]} 
         />
-        <Environment preset="city" />
+
 
         <OrbitControls 
+          enabled={!interactionBlocked}
           ref={controlsRef}
           maxPolarAngle={Math.PI / 2 - 0.05} 
           maxDistance={6000} 
@@ -1700,14 +1608,14 @@ export function Canvas3D({
 
       {/* Visual Badge when Isometric Cutaway is Active */}
       {isCutawayActive && (
-        <div className="hidden sm:flex absolute top-5 right-5 z-10 items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-[11px] font-medium text-slate-300 shadow-lg pointer-events-none">
+        <div className="hidden sm:flex absolute top-20 right-5 z-10 items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-[11px] font-medium text-slate-300 shadow-lg pointer-events-none">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span>Isometric Cutaway Active • Front walls dimmed</span>
         </div>
       )}
 
       {/* Desktop 3D Camera Controls & View Toolbar (Bottom Center) */}
-      <div className="hidden md:flex absolute bottom-8 left-1/2 -translate-x-1/2 z-20 items-center gap-1.5 bg-slate-900/85 backdrop-blur-xl border border-slate-700/60 p-1.5 rounded-2xl shadow-xl text-white">
+      <div className="hidden md:flex absolute bottom-8 left-1/2 -translate-x-1/2 z-20 max-w-[calc(100%-2rem)] flex-wrap justify-center items-center gap-1.5 bg-slate-900/85 backdrop-blur-xl border border-slate-700/60 p-1.5 rounded-2xl shadow-xl text-white">
         <button
           onClick={() => {
             setFocusTarget(null);
@@ -1832,11 +1740,13 @@ export function Canvas3D({
         </button>
       </div>
 
+      <button className="absolute top-16 md:top-4 right-4 z-20 min-h-11 rounded-xl bg-white/95 border border-slate-200 px-3 text-xs font-medium text-slate-700 shadow-sm" aria-pressed={minimalStyle} onClick={() => setMinimalStyle(value => !value)}>{minimalStyle ? 'Minimal finishes' : 'Patterned finishes'}</button>
       {/* Bottom Floating Keyboard & Interaction Hint (Desktop) */}
       <div className="hidden md:flex absolute top-4 left-4 z-10 bg-slate-900/80 text-slate-300 px-3 py-2 rounded-xl text-[11px] font-medium pointer-events-none backdrop-blur-md border border-slate-700/60 shadow-xl items-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
         <span>Select object • Arrows: Nudge • R: Rotate • E/C: Elevate • F: Focus • Del: Delete</span>
       </div>
     </div>
+    </MinimalStyleContext.Provider>
   );
 }

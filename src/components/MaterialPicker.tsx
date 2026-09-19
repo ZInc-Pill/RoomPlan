@@ -14,6 +14,7 @@ interface MaterialPickerProps {
   onSelectMaterial: (materialId: string, defaultColor?: string) => void;
   onSelectColor: (color: string) => void;
   compact?: boolean;
+  upholstery?: boolean;
 }
 
 export function MaterialPicker({
@@ -22,6 +23,7 @@ export function MaterialPicker({
   currentColor,
   onSelectMaterial,
   onSelectColor,
+  upholstery = false,
   compact = false
 }: MaterialPickerProps) {
   const materials: MaterialDef[] = 
@@ -29,7 +31,7 @@ export function MaterialPicker({
       ? FLOOR_MATERIALS 
       : mode === 'wall' 
       ? WALL_MATERIALS 
-      : ITEM_FINISHES;
+      : upholstery ? ITEM_FINISHES.filter(m => m.category === 'fabric' || m.category === 'leather' || m.id === currentMaterial) : ITEM_FINISHES;
 
   const categories = Array.from(new Set(materials.map(m => m.category)));
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -68,9 +70,11 @@ export function MaterialPicker({
             return (
               <button
                 key={mat.id}
+                aria-label={mat.name}
+                aria-pressed={currentMaterial === mat.id}
                 onClick={() => onSelectMaterial(mat.id, mat.color)}
                 title={`${mat.name} - ${mat.description || ''}`}
-                className={`relative group shrink-0 w-10 h-10 rounded-xl border-2 transition-all flex items-center justify-center ${
+                className={`relative group shrink-0 w-11 h-11 rounded-xl border-2 transition-all flex items-center justify-center ${
                   isSelected 
                     ? 'border-indigo-600 scale-105 shadow-md ring-2 ring-indigo-500/20' 
                     : 'border-slate-200 hover:border-indigo-300 hover:scale-102'
@@ -87,7 +91,7 @@ export function MaterialPicker({
           })}
 
           {/* Custom Color Input */}
-          <label className="relative shrink-0 w-10 h-10 rounded-xl border-2 border-dashed border-slate-300 hover:border-indigo-400 flex items-center justify-center cursor-pointer bg-slate-50 transition-all">
+          <label className="relative shrink-0 w-11 h-11 rounded-xl border-2 border-dashed border-slate-300 hover:border-indigo-400 flex items-center justify-center cursor-pointer bg-slate-50 transition-all">
             <input
               type="color"
               value={currentColor || '#cbd5e1'}
@@ -122,7 +126,7 @@ export function MaterialPicker({
         <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
           <button
             onClick={() => setActiveCategory('all')}
-            className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all shrink-0 ${
+            className={`min-h-11 px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all shrink-0 ${
               activeCategory === 'all'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -134,7 +138,7 @@ export function MaterialPicker({
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all shrink-0 ${
+              className={`min-h-11 px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all shrink-0 ${
                 activeCategory === cat
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -153,8 +157,10 @@ export function MaterialPicker({
           return (
             <button
               key={mat.id}
+                aria-label={mat.name}
+                aria-pressed={currentMaterial === mat.id}
               onClick={() => onSelectMaterial(mat.id, mat.color)}
-              className={`flex items-center gap-2 p-1.5 rounded-xl border text-left transition-all relative ${
+              className={`min-h-11 flex items-center gap-2 p-1.5 rounded-xl border text-left transition-all relative ${
                 isSelected 
                   ? 'border-indigo-600 bg-indigo-50/70 shadow-xs ring-2 ring-indigo-500/20' 
                   : 'border-slate-200/80 bg-white hover:border-slate-300 hover:bg-slate-50'
@@ -200,8 +206,10 @@ export function MaterialPicker({
             return (
               <button
                 key={color}
+                aria-label={`Tint ${color}`}
+                aria-pressed={isMatch}
                 onClick={() => onSelectColor(color)}
-                className={`w-6 h-6 rounded-full shrink-0 border transition-all ${
+                className={`w-11 h-11 rounded-full shrink-0 border transition-all ${
                   isMatch ? 'border-indigo-600 scale-110 shadow-sm ring-2 ring-indigo-400/30' : 'border-slate-300 hover:scale-105'
                 }`}
                 style={{ backgroundColor: color }}
@@ -210,7 +218,7 @@ export function MaterialPicker({
           })}
 
           <label 
-            className="w-6 h-6 rounded-full border border-dashed border-slate-400 flex items-center justify-center shrink-0 cursor-pointer hover:border-indigo-500 transition-all bg-slate-50"
+            className="w-11 h-11 rounded-full border border-dashed border-slate-400 flex items-center justify-center shrink-0 cursor-pointer hover:border-indigo-500 transition-all bg-slate-50"
             title="Custom Color"
           >
             <input

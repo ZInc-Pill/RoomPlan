@@ -61,6 +61,9 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
   const onMoveRef = useRef(onMove);
   onMoveRef.current = onMove;
 
+  const hasNudgeRef = useRef(Boolean(onSingleNudge));
+  hasNudgeRef.current = Boolean(onSingleNudge);
+
   // Continuous movement loop
   const startMovementLoop = useCallback(() => {
     if (animFrameIdRef.current !== null) return;
@@ -72,7 +75,7 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
       lastTime = time;
 
       const { dist, angle } = currentVectorRef.current;
-      if (dist > 2) {
+      if (dist > 2 && (!hasNudgeRef.current || time - dragStartTimeRef.current >= 280)) {
         const normalized = Math.min(dist / config.maxRadius, 1);
         // Exponential curve: ultra-fine micro nudging at small deflections, very slow and controlled at full deflection
         const speed = Math.pow(normalized, 1.75) * config.maxSpeed * dt;
@@ -132,7 +135,7 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (disabled) return;
+    if (disabled || e.button !== 0 || !e.isPrimary || activePointerIdRef.current !== null) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -165,7 +168,7 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
     updateKnobFromPointer(e.clientX, e.clientY);
   };
 
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>, cancelled = false) => {
     if (activePointerIdRef.current !== e.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
@@ -174,7 +177,7 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
     const { dist, angle } = currentVectorRef.current;
 
     // Discrete tap detection for micro-nudging
-    if (elapsed < 280 && dist >= 4 && onSingleNudge) {
+    if (!cancelled && elapsed < 280 && dist >= 4 && onSingleNudge) {
       const deg = (angle * 180) / Math.PI;
       if (deg >= -45 && deg < 45) onSingleNudge('right');
       else if (deg >= 45 && deg < 135) onSingleNudge('down');
@@ -197,7 +200,7 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
   };
 
   const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
-    handlePointerUp(e);
+    handlePointerUp(e, true);
   };
 
   const isDark = theme === 'dark';
@@ -218,8 +221,9 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
         ref={containerRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
+        onPointerUp={(e) => handlePointerUp(e)}
         onPointerCancel={handlePointerCancel}
+        onLostPointerCapture={handlePointerCancel}
         style={{
           width: `${config.size}px`,
           height: `${config.size}px`,

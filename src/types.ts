@@ -40,6 +40,8 @@ export type ItemType = {
 };
 
 export type PlacedItem = {
+  wallId?: string;
+  wallOffset?: number; // centre distance from wall start, in centimetres
   id: string;
   typeId: string;
   x: number;

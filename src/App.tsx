@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import html2canvas from 'html2canvas';
+import { PreviewBoundary } from './components/PreviewBoundary';
+import { browserProjectStore } from './utils/localProjectStore';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+
 import { MousePointer2, PenTool, Layers, MessageSquare, Ruler, ListTree, Keyboard } from 'lucide-react';
 import { Toolbar } from './components/Toolbar';
 import { Canvas2D } from './components/Canvas2D';
-import { Canvas3D } from './components/Canvas3D';
+const Canvas3D = lazy(() => import('./components/Canvas3D').then(module => ({ default: module.Canvas3D })));
 import { AppMode, Wall, PlacedItem, Floor, CommentType } from './types';
 import { ITEM_CATALOG } from './catalog';
 
@@ -18,12 +20,22 @@ import { MobileActionsMenu } from './components/MobileActionsMenu';
 import { ExportScreenshotModal } from './components/ExportScreenshotModal';
 import { sanitizeClonedDocument } from './utils/screenshotUtils';
 import { isInteractiveElement } from './utils/input';
+import { useDocumentHistory } from './hooks/useDocumentHistory';
+import { useProjectAutosave } from './hooks/useProjectAutosave';
+import { parseProject, serializeProject, PROJECT_LIMIT, BACKUP_KEY } from './utils/projectFile';
+import { attachNearestOpening, isOpening } from './utils/openingAttachment';
+import { updateConnectedWall } from './utils/wallConnections';
+import { getGridSize } from './utils/coordinates';
+import { emptyDocument, type PlanDocument } from './utils/documentHistory';
 
 export default function App() {
-  const [walls, setWalls] = useState<Wall[]>([]);
-  const [floors, setFloors] = useState<Floor[]>([]);
-  const [items, setItems] = useState<PlacedItem[]>([]);
-  const [comments, setComments] = useState<CommentType[]>([]);
+  const { state: documentState, update: updateDocument, undo: handleUndo, redo: handleRedo } = useDocumentHistory();
+  const { walls, floors, items, comments } = documentState.present;
+  const saveStatus = useProjectAutosave(documentState.present, Boolean(documentState.start));
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const historyIndex = documentState.past.length;
+  const history = { length: historyIndex + 1 + documentState.future.length };
+  const [gridOption, setGridOption] = useState<1 | 2 | 3>(1);
   const [mode, setMode] = useState<AppMode>('SELECT');
   const [view3D, setView3D] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
@@ -31,20 +43,31 @@ export default function App() {
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
   const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
 
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px)');
+    const changed = () => { setIsMobile(query.matches); if (!query.matches) setActivePanel(null); };
+    query.addEventListener('change', changed);
+    return () => query.removeEventListener('change', changed);
+  }, []);
+
   // Modals & Drawers State
-  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
-  const [isLayersOpen, setIsLayersOpen] = useState(false);
-  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<'catalog' | 'layers' | 'inspector' | 'menu' | null>(null);
+  const isCatalogOpen = activePanel === 'catalog';
+  const isLayersOpen = activePanel === 'layers';
+  const isInspectorOpen = activePanel === 'inspector';
+  const isMenuOpen = activePanel === 'menu';
+  const panelSetter = (panel: typeof activePanel) => (open: boolean) =>
+    setActivePanel(current => open ? panel : current === panel ? null : current);
+  const setIsCatalogOpen = panelSetter('catalog');
+  const setIsLayersOpen = panelSetter('layers');
+  const setIsInspectorOpen = panelSetter('inspector');
+  const setIsMenuOpen = panelSetter('menu');
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isScreenshotModalOpen, setIsScreenshotModalOpen] = useState(false);
   
   // Clipboard state
   const [clipboard, setClipboard] = useState<{ type: 'item' | 'wall' | 'floor' | 'comment'; data: any } | null>(null);
-
-  // History State
-  const [history, setHistory] = useState<{ walls: Wall[], floors: Floor[], items: PlacedItem[], comments: CommentType[] }[]>([{ walls: [], floors: [], items: [], comments: [] }]);
-  const [historyIndex, setHistoryIndex] = useState(0);
 
   // 3D Camera & Focus State
   const [cameraPreset3D, setCameraPreset3D] = useState<'perspective' | 'top' | 'isometric'>('perspective');
@@ -52,88 +75,29 @@ export default function App() {
 
   const mainRef = useRef<HTMLDivElement>(null);
 
-  const saveToHistory = (newWalls: Wall[], newFloors: Floor[], newItems: PlacedItem[], newComments: CommentType[]) => {
-    const nextState = { walls: newWalls, floors: newFloors, items: newItems, comments: newComments };
-    const newHistory = history.slice(0, historyIndex + 1);
-    setHistory([...newHistory, nextState]);
-    setHistoryIndex(newHistory.length);
-  };
-
-  const handleSetWalls = (newWalls: Wall[] | ((prev: Wall[]) => Wall[])) => {
-    setWalls(prev => {
-      const next = typeof newWalls === 'function' ? newWalls(prev) : newWalls;
-      saveToHistory(next, floors, items, comments);
-      return next;
-    });
-  };
-
-  const handleSetFloors = (newFloors: Floor[] | ((prev: Floor[]) => Floor[])) => {
-    setFloors(prev => {
-      const next = typeof newFloors === 'function' ? newFloors(prev) : newFloors;
-      saveToHistory(walls, next, items, comments);
-      return next;
-    });
-  };
-
-  const handleSetItems = (newItems: PlacedItem[] | ((prev: PlacedItem[]) => PlacedItem[])) => {
-    setItems(prev => {
-      const next = typeof newItems === 'function' ? newItems(prev) : newItems;
-      saveToHistory(walls, floors, next, comments);
-      return next;
-    });
-  };
-
-  const handleSetComments = (newComments: CommentType[] | ((prev: CommentType[]) => CommentType[])) => {
-    setComments(prev => {
-      const next = typeof newComments === 'function' ? newComments(prev) : newComments;
-      saveToHistory(walls, floors, items, next);
-      return next;
-    });
-  };
-
-  const handleUndo = () => {
-    if (historyIndex > 0) {
-      const prevState = history[historyIndex - 1];
-      setWalls(prevState.walls);
-      setFloors(prevState.floors);
-      setItems(prevState.items);
-      setComments(prevState.comments);
-      setHistoryIndex(historyIndex - 1);
-    }
-  };
-
-  const handleRedo = () => {
-    if (historyIndex < history.length - 1) {
-      const nextState = history[historyIndex + 1];
-      setWalls(nextState.walls);
-      setFloors(nextState.floors);
-      setItems(nextState.items);
-      setComments(nextState.comments);
-      setHistoryIndex(historyIndex + 1);
-    }
-  };
+  function updateCollection<K extends keyof PlanDocument>(key: K, value: PlanDocument[K] | ((previous: PlanDocument[K]) => PlanDocument[K])) {
+    updateDocument(document => ({ ...document, [key]: typeof value === 'function' ? value(document[key]) : value }));
+  }
+  const handleSetWalls = (value: Wall[] | ((previous: Wall[]) => Wall[])) => updateCollection('walls', value);
+  const handleSetFloors = (value: Floor[] | ((previous: Floor[]) => Floor[])) => updateCollection('floors', value);
+  const handleSetItems = (value: PlacedItem[] | ((previous: PlacedItem[]) => PlacedItem[])) => updateCollection('items', value);
+  const handleSetComments = (value: CommentType[] | ((previous: CommentType[]) => CommentType[])) => updateCollection('comments', value);
 
   const handleDelete = () => {
-    if (selectedItemIds.length > 0) {
-      handleSetItems(prev => prev.filter(i => !selectedItemIds.includes(i.id)));
-      setSelectedItemIds([]);
-    }
-    if (selectedWallId) {
-      handleSetWalls(prev => prev.filter(w => w.id !== selectedWallId));
-      setSelectedWallId(null);
-    }
-    if (selectedFloorId) {
-      handleSetFloors(prev => prev.filter(f => f.id !== selectedFloorId));
-      setSelectedFloorId(null);
-    }
-    if (selectedCommentId) {
-      handleSetComments(prev => prev.filter(c => c.id !== selectedCommentId));
-      setSelectedCommentId(null);
-    }
+    updateDocument(document => ({
+      walls: document.walls.filter(w => w.id !== selectedWallId),
+      floors: document.floors.filter(f => f.id !== selectedFloorId),
+      items: document.items.filter(i => !selectedItemIds.includes(i.id)),
+      comments: document.comments.filter(c => c.id !== selectedCommentId),
+    }));
+    setSelectedItemIds([]);
+    setSelectedWallId(null);
+    setSelectedFloorId(null);
+    setSelectedCommentId(null);
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (isInteractiveElement(e.target)) return;
+    if (isInteractiveElement(e.target) || activePanel || isShortcutsOpen || isScreenshotModalOpen) return;
 
     const key = e.key.toLowerCase();
     
@@ -203,6 +167,8 @@ export default function App() {
       return;
     }
 
+    if (view3D) return; // View-specific actions are owned by Canvas3D.
+
     switch (key) {
       case 'v': setMode('SELECT'); break;
       case 'w': setMode('DRAW_WALL'); break;
@@ -262,7 +228,7 @@ export default function App() {
   };
 
   const handleUpdateWall = (id: string, updates: Partial<Wall>) => {
-    handleSetWalls(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
+    handleSetWalls(prev => updateConnectedWall(prev, id, updates));
   };
 
   const handleUpdateFloor = (id: string, updates: Partial<Floor>) => {
@@ -300,25 +266,16 @@ export default function App() {
         return { ...i, rotation: nextRot };
       }));
     } else if (selectedWallId) {
-      // Rotate wall around its midpoint
-      handleSetWalls(prev => prev.map(w => {
-        if (w.id !== selectedWallId) return w;
-        const cx = (w.start.x + w.end.x) / 2;
-        const cy = (w.start.y + w.end.y) / 2;
-        const cos = Math.cos(delta);
-        const sin = Math.sin(delta);
-        return {
-          ...w,
-          start: {
-            x: Math.round(cx + (w.start.x - cx) * cos - (w.start.y - cy) * sin),
-            y: Math.round(cy + (w.start.x - cx) * sin + (w.start.y - cy) * cos)
-          },
-          end: {
-            x: Math.round(cx + (w.end.x - cx) * cos - (w.end.y - cy) * sin),
-            y: Math.round(cy + (w.end.x - cx) * sin + (w.end.y - cy) * cos)
-          }
-        };
-      }));
+      handleSetWalls(prev => {
+        const wall = prev.find(w => w.id === selectedWallId);
+        if (!wall) return prev;
+        const cx = (wall.start.x + wall.end.x) / 2, cy = (wall.start.y + wall.end.y) / 2;
+        const rotate = (p: { x: number; y: number }) => ({
+          x: cx + (p.x - cx) * Math.cos(delta) - (p.y - cy) * Math.sin(delta),
+          y: cy + (p.x - cx) * Math.sin(delta) + (p.y - cy) * Math.cos(delta),
+        });
+        return updateConnectedWall(prev, wall.id, { start: rotate(wall.start), end: rotate(wall.end) });
+      });
     } else if (selectedFloorId) {
       // Rotate floor polygon around its centroid
       handleSetFloors(prev => prev.map(f => {
@@ -353,11 +310,7 @@ export default function App() {
     if (selectedItemIds.length > 0) {
       handleSetItems(prev => prev.map(i => selectedItemIds.includes(i.id) ? { ...i, x: i.x + dx, y: i.y + dy } : i));
     } else if (selectedWallId) {
-      handleSetWalls(prev => prev.map(w => w.id === selectedWallId ? {
-        ...w,
-        start: { x: w.start.x + dx, y: w.start.y + dy },
-        end: { x: w.end.x + dx, y: w.end.y + dy }
-      } : w));
+      handleNudgeWall(selectedWallId, dx, dy);
     } else if (selectedFloorId) {
       handleSetFloors(prev => prev.map(f => f.id === selectedFloorId ? {
         ...f,
@@ -373,11 +326,14 @@ export default function App() {
 
   const handleNudgeWall = (id: string | undefined, dx: number, dy: number) => {
     if (!id) return;
-    handleSetWalls(prev => prev.map(w => w.id === id ? {
-      ...w,
-      start: { x: w.start.x + dx, y: w.start.y + dy },
-      end: { x: w.end.x + dx, y: w.end.y + dy }
-    } : w));
+    handleSetWalls(prev => {
+      const wall = prev.find(w => w.id === id);
+      if (!wall) return prev;
+      return updateConnectedWall(prev, id, {
+        start: { x: wall.start.x + dx, y: wall.start.y + dy },
+        end: { x: wall.end.x + dx, y: wall.end.y + dy },
+      });
+    });
   };
 
   const handleNudgeFloor = (id: string | undefined, dx: number, dy: number) => {
@@ -452,14 +408,19 @@ export default function App() {
         handleSetWalls(prev => [...prev, newWall]);
         setSelectedWallId(newId);
       }
+    } else if (selectedFloorId) {
+      const floor = floors.find(f => f.id === selectedFloorId);
+      if (floor) {
+        const id = crypto.randomUUID();
+        handleSetFloors(previous => [...previous, { ...floor, id, points: floor.points.map(point => ({ x: point.x + 20, y: point.y + 20 })) }]);
+        setSelectedFloorId(id);
+      }
     }
   };
 
   const handleClear = () => {
-    handleSetWalls([]);
-    handleSetFloors([]);
-    handleSetItems([]);
-    handleSetComments([]);
+    updateDocument(() => emptyDocument());
+    setSelectedCommentId(null);
     setSelectedItemIds([]);
     setSelectedWallId(null);
     setSelectedFloorId(null);
@@ -470,16 +431,20 @@ export default function App() {
   const handleOpen = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > PROJECT_LIMIT) { setProjectError('Project is too large (maximum 5 MB).'); return; }
     const reader = new FileReader();
+    reader.onerror = () => setProjectError('Could not read this file. Your current plan is unchanged.');
     reader.onload = (event) => {
       try {
-        const data = JSON.parse(event.target?.result as string);
-        if (data.walls) handleSetWalls(data.walls);
-        if (data.floors) handleSetFloors(data.floors);
-        if (data.items) handleSetItems(data.items);
-        if (data.comments) handleSetComments(data.comments);
+        const data = parseProject(event.target?.result as string);
+        updateDocument(() => data);
+        setProjectError(null);
+        setSelectedItemIds([]);
+        setSelectedWallId(null);
+        setSelectedFloorId(null);
+        setSelectedCommentId(null);
       } catch (err) {
-        console.error('Failed to parse file', err);
+        setProjectError((err instanceof Error ? err.message : 'Invalid project.') + ' Your current plan is unchanged.');
       }
     };
     reader.readAsText(file);
@@ -487,7 +452,7 @@ export default function App() {
   };
 
   const handleSave = () => {
-    const data = JSON.stringify({ walls, floors, items, comments }, null, 2);
+    const data = serializeProject({ walls, floors, items, comments });
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -512,8 +477,9 @@ export default function App() {
 
     // 2. In 2D view: use html2canvas with full oklch and modern CSS color sanitization
     try {
-      const canvas = await html2canvas(mainRef.current, {
+      const canvas = await (await import('html2canvas')).default((mainRef.current.querySelector('[data-scene]') as HTMLElement) || mainRef.current, {
         backgroundColor: '#F8FAFC',
+        ignoreElements: element => element.tagName === 'BUTTON' || element.hasAttribute('data-editor-control'),
         useCORS: true,
         logging: false,
         scale: Math.min(2, window.devicePixelRatio || 1.5),
@@ -655,8 +621,39 @@ export default function App() {
           }}
         />
         <main ref={mainRef} className="flex-1 relative bg-white flex items-center justify-center overflow-hidden">
+          <div className="absolute top-28 md:top-16 left-2 z-20 max-w-[calc(100%-1rem)] rounded-lg bg-white/95 border border-slate-200 px-2 py-1 text-[11px] shadow-sm" data-editor-control>
+            <span role="status">{saveStatus}</span>
+            {documentState.error && <p role="alert" className="max-w-xs text-rose-700">{documentState.error}</p>}
+            <button className="ml-2 underline min-h-8" onClick={() => {
+              try {
+                const backup = browserProjectStore().loadBackup();
+                if (!backup) throw new Error('No previous saved version is available yet.');
+                const restored = backup;
+                updateDocument(() => restored);
+                setSelectedItemIds([]); setSelectedWallId(null); setSelectedFloorId(null); setSelectedCommentId(null);
+                setProjectError(null);
+              } catch (error) { setProjectError(error instanceof Error ? error.message : 'Could not restore backup.'); }
+            }}>Restore previous save</button>
+            {selectedItemIds.length === 1 && items.filter(item => item.id === selectedItemIds[0] && isOpening(item)).map(item => <div key={item.id} className="border-t mt-1 pt-1">
+              <span>{item.wallId ? 'Attached to wall · movement follows wall' : 'Door/window not attached'}</span>
+              <button className="ml-2 underline min-h-9" onClick={() => {
+                if (item.wallId) {
+                  const { wallId, wallOffset, ...detached } = item;
+                  handleSetItems(previous => previous.map(current => current.id === item.id ? detached : current));
+                } else {
+                  const attached = attachNearestOpening(item, walls);
+                  if (!attached) { setProjectError('No wall is large enough for this opening.'); return; }
+                  handleUpdateItem(item.id, attached);
+                }
+              }}>{item.wallId ? 'Detach' : 'Attach to nearest wall'}</button>
+            </div>)}
+            {projectError && <div role="alert" className="text-rose-700 max-w-xs">{projectError}<button className="ml-2 underline min-h-8" onClick={() => setProjectError(null)}>Dismiss</button></div>}
+          </div>
+          <div className="relative h-full min-w-0 flex-1" data-scene>
           {view3D ? (
-            <Canvas3D 
+            <PreviewBoundary onReturn={() => setView3D(false)}>
+            <Suspense fallback={<div role="status" className="p-6 text-slate-600">Loading 3D preview…</div>}>
+            <Canvas3D interactionBlocked={Boolean(activePanel) || isShortcutsOpen || isScreenshotModalOpen}
               walls={walls} 
               floors={floors} 
               items={items} 
@@ -684,10 +681,12 @@ export default function App() {
               onCameraPresetChange={setCameraPreset3D}
               focusTarget={focusTarget3D}
               onFocusTargetChange={setFocusTarget3D}
-              isMobile={typeof window !== 'undefined' && window.innerWidth < 768}
+              isMobile={isMobile}
             />
+            </Suspense>
+            </PreviewBoundary>
           ) : (
-            <Canvas2D 
+            <Canvas2D gridOption={gridOption} setGridOption={setGridOption}
               walls={walls} 
               floors={floors}
               items={items}
@@ -710,7 +709,7 @@ export default function App() {
                 setSelectedFloorId(floorId);
                 setSelectedCommentId(commentId || null);
               }}
-              isDrawerOpen={isCatalogOpen || isLayersOpen || isInspectorOpen || isMenuOpen}
+              isDrawerOpen={Boolean(activePanel) || isShortcutsOpen || isScreenshotModalOpen}
             />
           )}
 
@@ -797,6 +796,7 @@ export default function App() {
             )}
           </button>
 
+          </div>
           <PropertiesPanel 
             selectedItemIds={selectedItemIds}
             selectedWallId={selectedWallId}
@@ -815,7 +815,7 @@ export default function App() {
 
       {/* Mobile Bottom Dock or 3D Control Deck */}
       {view3D ? (
-        <Mobile3DControlDeck 
+        <Mobile3DControlDeck isPanelOpen={Boolean(activePanel) || isScreenshotModalOpen}
           selectedItem={selectedItemIds.length === 1 ? items.find(i => i.id === selectedItemIds[0]) || null : null}
           selectedWall={selectedWallId ? walls.find(w => w.id === selectedWallId) || null : null}
           selectedFloor={selectedFloorId ? floors.find(f => f.id === selectedFloorId) || null : null}
@@ -845,7 +845,7 @@ export default function App() {
           onSnapshot={handleScreenshot}
         />
       ) : (
-        <MobileBottomDock 
+        <MobileBottomDock gridSize={getGridSize(gridOption)}
           mode={mode}
           setMode={setMode}
           onOpenCatalog={() => setIsCatalogOpen(true)}
@@ -897,7 +897,7 @@ export default function App() {
         onDeleteComment={handleDeleteComment}
       />
 
-      <MobileInspectorDrawer 
+      <MobileInspectorDrawer gridSize={getGridSize(gridOption)}
         isOpen={isInspectorOpen}
         onClose={() => setIsInspectorOpen(false)}
         selectedItemIds={selectedItemIds}

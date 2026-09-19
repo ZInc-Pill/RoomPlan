@@ -17,6 +17,7 @@ export function getWallHoles(wall: Wall, items: PlacedItem[]): { t1: number, t2:
     const typeInfo = ITEM_CATALOG.find(i => i.id === item.typeId);
     if (!typeInfo || (typeInfo.shape !== 'door' && typeInfo.shape !== 'window')) return;
     
+    if (item.wallId && item.wallId !== wall.id) return;
     const vx = item.x - wall.start.x;
     const vy = item.y - wall.start.y;
     
