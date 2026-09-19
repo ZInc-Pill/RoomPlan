@@ -1,3 +1,4 @@
+import { isOpening } from '../utils/openingAttachment';
 import { useState, useCallback, useRef } from 'react';
 import { Point, PlacedItem, Wall } from '../types';
 import { ITEM_CATALOG } from '../catalog';
@@ -143,6 +144,13 @@ export function useFurnitureInteraction({
     const rawDraggedX = pt.x - draggingItem.offsetX;
     const rawDraggedY = pt.y - draggingItem.offsetY;
     
+    // Wall-hosted openings use raw movement; document reconciliation owns wall alignment.
+    if (activeSelectedIds.length === 1 && isOpening(draggedObj)) {
+      setSnapGuides({ x: null, y: null });
+      onUpdateItems(currentItems.map(item => item.id === draggedObj.id ? { ...item, x: rawDraggedX, y: rawDraggedY } : item));
+      return { handled: true };
+    }
+
     // What is the displacement from draggedObj to group center?
     const dispX = groupCenterX - draggedObj.x;
     const dispY = groupCenterY - draggedObj.y;

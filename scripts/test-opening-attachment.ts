@@ -38,3 +38,24 @@ assert.match(rejected.error!, /not applied/);
 const separated = attachNearestOpening({ ...door, id: 'second', x: 160 }, [wall])!;
 assert.equal(openingValidationError({ ...original, items: [attached, separated] }), null);
 console.log('Opening safeguards: overlap rejection, import fit/position validation, visible errors and unchanged history passed.');
+
+// Movement prioritizes nearby walls for openings, without attracting ordinary furniture.
+const loose = { ...door, x: 80, y: 60 };
+const loosePlan = { ...emptyDocument(), walls: [wall], items: [loose] };
+const snapped = reconcileOpenings(loosePlan, { ...loosePlan, items: [{ ...loose, y: 10 }] });
+assert.equal(snapped.items[0].wallId, wall.id);
+assert.equal(snapped.items[0].y, 0);
+assert.equal(snapped.items[0].depth, wall.thickness * 2.5);
+const secondWall = { ...wall, id: 'other-wall', start: { x: 250, y: 0 }, end: { x: 250, y: 200 } };
+const transferPlan = { ...original, walls: [wall, secondWall] };
+const transferred = reconcileOpenings(transferPlan, { ...transferPlan, items: [{ ...attached, x: 245, y: 80 }] });
+assert.equal(transferred.items[0].wallId, secondWall.id);
+assert.equal(transferred.items[0].rotation, Math.PI / 2);
+assert.equal(transferred.items[0].x, 250);
+const furniture = { ...loose, typeId: 'liv_sofa_2' };
+const furniturePlan = { ...loosePlan, items: [furniture] };
+assert.equal(reconcileOpenings(furniturePlan, { ...furniturePlan, items: [{ ...furniture, y: 10 }] }).items[0].wallId, undefined);
+assert.equal(reconcileOpenings(loosePlan, { ...loosePlan, items: [{ ...loose, y: 40 }] }).items[0].wallId, undefined);
+const detached = { ...attached, wallId: undefined, wallOffset: undefined, y: 5 };
+assert.equal(reconcileOpenings(original, { ...original, items: [detached] }).items[0].wallId, undefined);
+console.log('Opening movement: automatic attachment, thickness, wall transfer, furniture isolation and explicit detach passed.');

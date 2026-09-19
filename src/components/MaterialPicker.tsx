@@ -49,6 +49,12 @@ export function MaterialPicker({
     ? ['#f8fafc', '#f5efe6', '#993d28', '#f1f5f9', '#c8955c', '#94a3b8', '#8da399', '#334155', '#eef0eb', '#1e293b']
     : ['#d4a373', '#5c3d2e', '#ede4d4', '#222225', '#f6f3eb', '#3f3f46', '#94a3b8', '#064e3b', '#1e3a8a', '#9a3412', '#d97706', '#1e2022', '#e2e8f0'];
 
+  const customColorControl = <label className="flex items-center justify-between gap-3 min-h-11 text-xs font-medium text-slate-600">
+    <span>Custom colour</span>
+    <input aria-label="Custom colour" type="color" value={currentColor || activeMat?.color || '#cbd5e1'}
+      onChange={event => onSelectColor(event.target.value)} className="h-11 w-16 cursor-pointer rounded border border-slate-200 bg-white p-1" />
+  </label>;
+
   if (compact) {
     return (
       <div className="space-y-2">
@@ -63,6 +69,7 @@ export function MaterialPicker({
           )}
         </div>
 
+        {customColorControl}
         {/* Scrollable Material Swatches */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin">
           {materials.map(mat => {
@@ -189,6 +196,7 @@ export function MaterialPicker({
         })}
       </div>
 
+      {customColorControl}
       {/* Tint & Color Bar */}
       <div className="pt-2 border-t border-slate-100 space-y-1.5">
         <div className="flex items-center justify-between">
@@ -218,14 +226,14 @@ export function MaterialPicker({
           })}
 
           <label 
-            className="w-11 h-11 rounded-full border border-dashed border-slate-400 flex items-center justify-center shrink-0 cursor-pointer hover:border-indigo-500 transition-all bg-slate-50"
+            className="relative w-11 h-11 rounded-full border border-dashed border-slate-400 flex items-center justify-center shrink-0 cursor-pointer hover:border-indigo-500 transition-all bg-slate-50"
             title="Custom Color"
           >
             <input
               type="color"
               value={currentColor || '#cbd5e1'}
               onChange={(e) => onSelectColor(e.target.value)}
-              className="opacity-0 absolute w-0 h-0"
+              aria-label="Pick custom tint" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
             />
             <Palette className="w-3 h-3 text-slate-500" />
           </label>

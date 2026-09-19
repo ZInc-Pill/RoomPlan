@@ -29,7 +29,7 @@ export function KitchenFixtures({ typeId, width: w, height: h, depth: d, color, 
     const vanity = typeId === 'bath_sink';
     const rim = vanity ? 0.78 : 0.62;
     const bottom = vanity ? 0.62 : 0.12;
-    const ceramic = vanity ? '#f1efe9' : '#adb5b7';
+    const ceramic = color;
     return <group>
       {vanity && <>
         {part('cabinet', [0.96, 0.57, 0.94], [0, 0.335, 0])}

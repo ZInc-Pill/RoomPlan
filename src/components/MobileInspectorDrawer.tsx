@@ -353,7 +353,7 @@ export function MobileInspectorDrawer({
                       onUpdateWall(selectedWall.id, { material: matId, color: defColor });
                     }}
                     onSelectColor={(col) => {
-                      onUpdateWall(selectedWall.id, { color: col });
+                      onUpdateWall(selectedWall.id, { color: col, material: undefined });
                     }}
                   />
                 </div>
@@ -371,7 +371,7 @@ export function MobileInspectorDrawer({
                     onUpdateFloor(selectedFloor.id, { material: matId, color: defColor });
                   }}
                   onSelectColor={(col) => {
-                    onUpdateFloor(selectedFloor.id, { color: col });
+                    onUpdateFloor(selectedFloor.id, { color: col, material: undefined });
                   }}
                 />
               </div>

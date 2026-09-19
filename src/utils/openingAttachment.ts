@@ -32,7 +32,7 @@ export function placeOpening(item: PlacedItem, wall: Wall, offsetCm: number): Pl
   const length = Math.hypot(dx, dy), half = cmToPx(item.width ?? type.width) / 2;
   if (length < half * 2 || length === 0 || cmToPx((item.height ?? type.height) + (item.elevation ?? 0)) > (wall.height ?? 150)) return null;
   const offset = Math.max(half, Math.min(length - half, cmToPx(offsetCm)));
-  return { ...item, wallId: wall.id, wallOffset: pxToCm(offset), x: wall.start.x + dx * offset / length, y: wall.start.y + dy * offset / length, rotation: Math.atan2(dy, dx) };
+  return { ...item, wallId: wall.id, wallOffset: pxToCm(offset), depth: pxToCm(wall.thickness), x: wall.start.x + dx * offset / length, y: wall.start.y + dy * offset / length, rotation: Math.atan2(dy, dx) };
 }
 
 export function attachNearestOpening(item: PlacedItem, walls: Wall[]): PlacedItem | null {
@@ -53,11 +53,16 @@ export function attachNearestOpening(item: PlacedItem, walls: Wall[]): PlacedIte
 export function reconcileOpenings(previous: PlanDocument, next: PlanDocument): PlanDocument {
   let invalid = false;
   const items = next.items.map(item => {
+    const old = previous.items.find(i => i.id === item.id);
+    const manuallyMoved = old && (old.x !== item.x || old.y !== item.y);
+    // Apply wall priority only to movement, never imports, colour edits or an explicit detach.
+    if (manuallyMoved && isOpening(item) && old.wallId === item.wallId) {
+      const nearby = attachNearestOpening(item, next.walls);
+      if (nearby && Math.hypot(nearby.x - item.x, nearby.y - item.y) <= 24) item = nearby;
+    }
     if (!item.wallId) return item;
     const wall = next.walls.find(w => w.id === item.wallId);
     if (!wall) { const { wallId, wallOffset, ...detached } = item; return detached; }
-    const old = previous.items.find(i => i.id === item.id);
-    const manuallyMoved = old && (old.x !== item.x || old.y !== item.y);
     const dx = wall.end.x - wall.start.x, dy = wall.end.y - wall.start.y, length = Math.hypot(dx, dy);
     const offset = manuallyMoved && length ? pxToCm(((item.x - wall.start.x) * dx + (item.y - wall.start.y) * dy) / length) : item.wallOffset ?? 0;
     const placed = placeOpening(item, wall, offset);

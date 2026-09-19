@@ -204,7 +204,7 @@ export function PropertiesPanel({
                 onUpdateWall(selectedWall.id, { material: materialId, color: defaultColor });
               }}
               onSelectColor={(color) => {
-                onUpdateWall(selectedWall.id, { color });
+                onUpdateWall(selectedWall.id, { color, material: undefined });
               }}
             />
             
@@ -240,7 +240,7 @@ export function PropertiesPanel({
                 onUpdateFloor(selectedFloor.id, { material: materialId, color: defaultColor });
               }}
               onSelectColor={(color) => {
-                onUpdateFloor(selectedFloor.id, { color });
+                onUpdateFloor(selectedFloor.id, { color, material: undefined });
               }}
             />
             
