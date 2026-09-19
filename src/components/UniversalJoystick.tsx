@@ -1,7 +1,9 @@
+import { snapRepeatInterval, joystickDirection } from '../utils/joystickTiming';
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Move, Magnet } from 'lucide-react';
 
 export interface UniversalJoystickProps {
+  snapRepeat?: boolean;
   onMove: (dx: number, dy: number) => void;
   onSingleNudge?: (direction: 'up' | 'down' | 'left' | 'right') => void;
   variant?: 'standard' | 'compact' | 'mini';
@@ -14,6 +16,7 @@ export interface UniversalJoystickProps {
 
 export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
   onMove,
+  snapRepeat = false,
   onSingleNudge,
   variant = 'standard',
   theme = 'dark',
@@ -49,7 +52,7 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
       maxSpeed: 0.30 * speedMultiplier,
     },
     mini: {
-      size: 40,
+      size: 48,
       knobSize: 20,
       maxRadius: 11,
       iconSize: 10,
@@ -64,18 +67,33 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
   const hasNudgeRef = useRef(Boolean(onSingleNudge));
   hasNudgeRef.current = Boolean(onSingleNudge);
 
+  const snapRepeatRef = useRef(snapRepeat);
+  snapRepeatRef.current = snapRepeat;
+  const nudgeRef = useRef(onSingleNudge);
+  nudgeRef.current = onSingleNudge;
+  const repeatedRef = useRef(false);
+
   // Continuous movement loop
   const startMovementLoop = useCallback(() => {
     if (animFrameIdRef.current !== null) return;
 
     let lastTime = performance.now();
+    let nextSnapAt = lastTime + 180;
 
     const loop = (time: number) => {
       const dt = Math.min((time - lastTime) / 16.666, 2.5); // Normalize to 60fps
       lastTime = time;
 
       const { dist, angle } = currentVectorRef.current;
-      if (dist > 2 && (!hasNudgeRef.current || time - dragStartTimeRef.current >= 280)) {
+      if (snapRepeatRef.current && nudgeRef.current) {
+        if (dist >= 4 && time >= nextSnapAt) {
+          nudgeRef.current(joystickDirection(angle));
+          repeatedRef.current = true;
+          nextSnapAt = time + snapRepeatInterval(dist / config.maxRadius);
+        } else if (dist < 4) {
+          nextSnapAt = time + 180;
+        }
+      } else if (dist > 2 && (!hasNudgeRef.current || time - dragStartTimeRef.current >= 280)) {
         const normalized = Math.min(dist / config.maxRadius, 1);
         // Exponential curve: ultra-fine micro nudging at small deflections, very slow and controlled at full deflection
         const speed = Math.pow(normalized, 1.75) * config.maxSpeed * dt;
@@ -103,6 +121,20 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
       stopMovementLoop();
     };
   }, [stopMovementLoop]);
+
+  useEffect(() => {
+    const cancel = () => {
+      stopMovementLoop();
+      activePointerIdRef.current = null;
+      currentVectorRef.current = { dx: 0, dy: 0, dist: 0, angle: 0 };
+      setIsDragging(false); setActiveDirection(null); setKnobPos({ x: 0, y: 0 });
+    };
+    const hidden = () => { if (document.hidden) cancel(); };
+    if (disabled) cancel();
+    window.addEventListener('blur', cancel);
+    document.addEventListener('visibilitychange', hidden);
+    return () => { window.removeEventListener('blur', cancel); document.removeEventListener('visibilitychange', hidden); };
+  }, [disabled, stopMovementLoop]);
 
   const updateKnobFromPointer = (clientX: number, clientY: number) => {
     if (!containerRef.current) return;
@@ -141,6 +173,7 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
 
     activePointerIdRef.current = e.pointerId;
     dragStartTimeRef.current = performance.now();
+    repeatedRef.current = false;
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
@@ -177,7 +210,7 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
     const { dist, angle } = currentVectorRef.current;
 
     // Discrete tap detection for micro-nudging
-    if (!cancelled && elapsed < 280 && dist >= 4 && onSingleNudge) {
+    if (!cancelled && !repeatedRef.current && elapsed < (snapRepeat ? 180 : 280) && dist >= 4 && onSingleNudge) {
       const deg = (angle * 180) / Math.PI;
       if (deg >= -45 && deg < 45) onSingleNudge('right');
       else if (deg >= 45 && deg < 135) onSingleNudge('down');
@@ -239,7 +272,8 @@ export const UniversalJoystick: React.FC<UniversalJoystickProps> = ({
               ? 'bg-slate-100 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.25)]'
               : 'bg-slate-100/90 border-slate-200/90 shadow-inner hover:border-slate-300'
         }`}
-        title="Universal Joystick: Drag in any direction to smoothly glide selected elements"
+        role="group" aria-label="Movement joystick"
+        title={snapRepeat ? "Tap for one grid step; hold for repeated steps" : "Drag to glide freely"}
       >
         {/* Cardinal Direction Ticks / Crosshair */}
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">

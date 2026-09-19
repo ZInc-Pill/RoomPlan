@@ -55,37 +55,8 @@ export function MobileBottomDock({
 }: MobileBottomDockProps) {
   const [isJoystickActive, setIsJoystickActive] = useState(false);
   const [glideSnapMode, setGlideSnapMode] = useState<'snap' | 'free'>('snap');
-  const nudgeAccumulator = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
-  useEffect(() => { nudgeAccumulator.current = { x: 0, y: 0 }; }, [gridSize, glideSnapMode, selectedItemIds.join(','), selectedWallId, selectedFloorId, isJoystickActive]);
-
-  // Handle joystick movement with Snap on Grid (Primary) vs Free Move (Secondary)
   const handleJoystickMove = (dx: number, dy: number) => {
-    if (!onNudgeSelected) return;
-
-    if (glideSnapMode === 'snap') {
-      nudgeAccumulator.current.x += dx;
-      nudgeAccumulator.current.y += dy;
-
-      const SNAP_THRESHOLD = 12;
-      const step = gridSize;
-      let stepX = 0;
-      let stepY = 0;
-
-      if (Math.abs(nudgeAccumulator.current.x) >= SNAP_THRESHOLD) {
-        stepX = Math.sign(nudgeAccumulator.current.x) * step;
-        nudgeAccumulator.current.x = 0;
-      }
-      if (Math.abs(nudgeAccumulator.current.y) >= SNAP_THRESHOLD) {
-        stepY = Math.sign(nudgeAccumulator.current.y) * step;
-        nudgeAccumulator.current.y = 0;
-      }
-
-      if (stepX === 0 && stepY === 0) return;
-      onNudgeSelected(stepX, stepY);
-    } else {
-      onNudgeSelected(dx, dy);
-    }
+    onNudgeSelected?.(dx, dy);
   };
 
   const handleSingleNudge = (dir: 'up' | 'down' | 'left' | 'right') => {
@@ -116,7 +87,7 @@ export function MobileBottomDock({
               ×
             </button>
           </div>
-          <UniversalJoystick
+          <UniversalJoystick key={[glideSnapMode, gridSize, ...selectedItemIds, selectedWallId, selectedFloorId].join(':')} snapRepeat={glideSnapMode === 'snap'}
             onMove={handleJoystickMove}
             onSingleNudge={handleSingleNudge}
             variant="standard"
