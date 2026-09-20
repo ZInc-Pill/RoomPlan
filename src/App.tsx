@@ -70,7 +70,7 @@ export default function App() {
   const [clipboard, setClipboard] = useState<{ type: 'item' | 'wall' | 'floor' | 'comment'; data: any } | null>(null);
 
   // 3D Camera & Focus State
-  const [cameraPreset3D, setCameraPreset3D] = useState<'perspective' | 'top' | 'isometric'>('perspective');
+  const [cameraPreset3D, setCameraPreset3D] = useState<'perspective' | 'walk' | 'isometric'>('perspective');
   const [focusTarget3D, setFocusTarget3D] = useState<[number, number, number] | null>(null);
 
   const mainRef = useRef<HTMLDivElement>(null);
@@ -933,6 +933,7 @@ export default function App() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
             </div>
+            <div className="rounded-xl bg-indigo-50 p-3 text-sm text-slate-700 mb-3"><strong>Walk / POV mode</strong><p>WASD or arrow keys — move forward, backward and sideways.</p><p>Q / E — turn left / right without a mouse.</p><p>Click the scene — mouse look. Esc — release mouse.</p><p>Mobile: joystick to walk; drag the view to look. Choose Slow, Normal or Fast walking speed.</p></div>
             <div className="grid grid-cols-2 gap-y-3 text-sm text-slate-600">
               <div className="font-medium text-slate-800">Select Mode</div>
               <div className="text-right">

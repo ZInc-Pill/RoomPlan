@@ -1,3 +1,5 @@
+import { WalkJoystick } from './WalkJoystick';
+import { WalkCamera } from './WalkCamera';
 import { getProceduralTexture } from '../utils/proceduralTextures';
 import { KitchenFixtures, KITCHEN_FIXTURE_IDS } from './KitchenFixtures';
 import { CaseFurniture, CASE_FURNITURE_IDS } from './CaseFurniture';
@@ -70,8 +72,8 @@ interface Canvas3DProps {
   onRotate: (delta?: number) => void;
   onElevate?: (deltaCm: number) => void;
   onOpenInspector?: () => void;
-  cameraPreset?: 'perspective' | 'top' | 'isometric';
-  onCameraPresetChange?: (preset: 'perspective' | 'top' | 'isometric') => void;
+  cameraPreset?: 'perspective' | 'walk' | 'isometric';
+  onCameraPresetChange?: (preset: 'perspective' | 'walk' | 'isometric') => void;
   focusTarget?: [number, number, number] | null;
   onFocusTargetChange?: (target: [number, number, number] | null) => void;
   isMobile?: boolean;
@@ -1180,7 +1182,7 @@ function CameraController({
   defaultSpan = 600,
   controlsRef,
 }: {
-  preset: 'perspective' | 'top' | 'isometric' | null;
+  preset: 'perspective' | 'walk' | 'isometric' | null;
   focusPos: [number, number, number] | null;
   defaultTarget: [number, number, number];
   defaultSpan?: number;
@@ -1197,7 +1199,7 @@ function CameraController({
       if (preset === 'isometric') {
         const isoDist = Math.max(650, defaultSpan * 1.15);
         camera.position.set(defaultTarget[0] + isoDist, isoDist * 0.85, defaultTarget[2] + isoDist);
-      } else if (preset === 'top') {
+      } else if (preset === 'walk') {
         const topDist = Math.max(1000, defaultSpan * 1.6);
         camera.position.set(defaultTarget[0], topDist, defaultTarget[2] + 0.1);
       } else {
@@ -1226,7 +1228,7 @@ function CameraController({
       const cx = defaultTarget[0];
       const cz = defaultTarget[2];
 
-      if (preset === 'top') {
+      if (preset === 'walk') {
         const topDist = Math.max(1000, defaultSpan * 1.6);
         controlsRef.current.target.set(cx, 0, cz);
         camera.position.set(cx, topDist, cz + 0.1);
@@ -1279,15 +1281,15 @@ export function Canvas3D({
   const [hoveredWallId, setHoveredWallId] = useState<string | null>(null);
   const [gridVisible, setGridVisible] = useState<boolean>(false);
   const [minimalStyle, setMinimalStyle] = useState(true);
-  const [localCameraPreset, setLocalCameraPreset] = useState<'perspective' | 'top' | 'isometric'>('perspective');
+  const [localCameraPreset, setLocalCameraPreset] = useState<'perspective' | 'walk' | 'isometric'>('perspective');
   const [localFocusTarget, setLocalFocusTarget] = useState<[number, number, number] | null>(null);
   const [cutawayOverride, setCutawayOverride] = useState<boolean | null>(null);
 
   const cameraPreset = propCameraPreset || localCameraPreset;
   const focusTarget = propFocusTarget !== undefined ? propFocusTarget : localFocusTarget;
-  const isCutawayActive = cutawayOverride !== null ? cutawayOverride : (cameraPreset === 'isometric');
+  const isCutawayActive = cameraPreset === 'isometric';
 
-  const setCameraPreset = (preset: 'perspective' | 'top' | 'isometric') => {
+  const setCameraPreset = (preset: 'perspective' | 'walk' | 'isometric') => {
     setLocalCameraPreset(preset);
     onCameraPresetChange?.(preset);
     if (preset === 'isometric') {
@@ -1303,6 +1305,8 @@ export function Canvas3D({
   const effectiveIsMobile = isMobile || (typeof window !== 'undefined' && window.innerWidth < 768);
 
   const controlsRef = useRef<any>(null);
+  const [walkSpeed, setWalkSpeed] = useState(1.2);
+  const walkMovement = useRef<[number, number]>([0, 0]);
 
   const [controlsExpanded, setControlsExpanded] = useState(false);
   const [snapMode, setSnapMode] = useState(true);
@@ -1415,7 +1419,7 @@ export function Canvas3D({
   // Keyboard navigation and shortcuts for desktop 3D
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (interactionBlocked || isInteractiveElement(e.target) || e.ctrlKey || e.metaKey) return;
+      if (cameraPreset === 'walk' || interactionBlocked || isInteractiveElement(e.target) || e.ctrlKey || e.metaKey) return;
 
       const step = e.shiftKey 
         ? (snapMode ? 50 : 10) 
@@ -1471,7 +1475,7 @@ export function Canvas3D({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [interactionBlocked, selectedItem, selectedWall, selectedFloor, snapMode, onUpdateItem, onUpdateWall, onUpdateFloor, onRotate, onElevate, onDeleteItem, onDeleteWall, onDeleteFloor, onSelect]);
+  }, [cameraPreset, interactionBlocked, selectedItem, selectedWall, selectedFloor, snapMode, onUpdateItem, onUpdateWall, onUpdateFloor, onRotate, onElevate, onDeleteItem, onDeleteWall, onDeleteFloor, onSelect]);
 
 
   return (
@@ -1534,7 +1538,7 @@ export function Canvas3D({
               item={item} 
               isSelected={selectedItemIds.includes(item.id)}
               isHovered={hoveredItemId === item.id}
-              showControls={!effectiveIsMobile && !interactionBlocked}
+              showControls={cameraPreset !== 'walk' && !effectiveIsMobile && !interactionBlocked}
               onSelect={() => onSelect([item.id], null, null, null)}
               onHover={(hover) => setHoveredItemId(hover ? item.id : null)}
               onRotate={onRotate}
@@ -1545,7 +1549,7 @@ export function Canvas3D({
           ))}
 
           {/* Desktop-Only Blender Move Arrows Gizmo (Red X-Axis, Green Y-Axis, Blue Z-Axis) */}
-          {selectedItem && !effectiveIsMobile && (
+          {selectedItem && !effectiveIsMobile && cameraPreset !== 'walk' && (
             <BlenderMoveGizmo
               item={selectedItem}
               onUpdateItem={onUpdateItem}
@@ -1591,158 +1595,47 @@ export function Canvas3D({
 
 
         <OrbitControls 
-          enabled={!interactionBlocked}
+          enabled={!interactionBlocked && cameraPreset !== 'walk'}
           ref={controlsRef}
+          // Keep the familiar touch map in every camera preset; no hidden pan mode.
+          touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
+          screenSpacePanning
+          rotateSpeed={1}
+          panSpeed={1}
+          zoomSpeed={1}
+          enableDamping
+          dampingFactor={0.05}
           maxPolarAngle={Math.PI / 2 - 0.05} 
           maxDistance={6000} 
         />
 
-        <CameraController
+        {cameraPreset === 'walk' ? <WalkCamera start={[targetX, targetZ]} movement={walkMovement} speed={walkSpeed} blocked={interactionBlocked} /> : <CameraController
           preset={cameraPreset}
           focusPos={focusTarget}
           defaultTarget={[targetX, 0, targetZ]}
           defaultSpan={targetSpan}
           controlsRef={controlsRef}
-        />
+        />}
       </Canvas>
 
-      {/* Visual Badge when Isometric Cutaway is Active */}
-      {isCutawayActive && (
-        <div className="hidden sm:flex absolute top-20 right-5 z-10 items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-[11px] font-medium text-slate-300 shadow-lg pointer-events-none">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Isometric Cutaway Active • Front walls dimmed</span>
+      <div data-editor-control className="absolute bottom-[calc(0.5rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-sm rounded-2xl bg-white/95 p-2 shadow-lg">
+        <div className="grid grid-cols-3 gap-2">
+          {(['perspective', 'walk', 'isometric'] as const).map(mode => <button key={mode} aria-pressed={cameraPreset === mode} className={cameraPreset === mode ? 'min-h-11 rounded-xl bg-indigo-600 text-white' : 'min-h-11 rounded-xl bg-slate-100 text-slate-700'} onClick={() => { setFocusTarget(null); if (mode === 'walk') onSelect([], null, null, null); setCameraPreset(mode); }}>{mode === 'perspective' ? 'General' : mode === 'walk' ? 'Walk' : 'Isometric'}</button>)}
         </div>
-      )}
-
-      {/* Desktop 3D Camera Controls & View Toolbar (Bottom Center) */}
-      <div className="hidden md:flex absolute bottom-8 left-1/2 -translate-x-1/2 z-20 max-w-[calc(100%-2rem)] flex-wrap justify-center items-center gap-1.5 bg-slate-900/85 backdrop-blur-xl border border-slate-700/60 p-1.5 rounded-2xl shadow-xl text-white">
-        <button
-          onClick={() => {
-            setFocusTarget(null);
-            setCameraPreset('perspective');
-          }}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-            cameraPreset === 'perspective' && !focusTarget
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800'
-          }`}
-          title="Architectural Perspective"
-        >
-          <Eye className="w-4 h-4" />
-          <span>Perspective</span>
-        </button>
-
-        <button
-          onClick={() => {
-            setFocusTarget(null);
-            setCameraPreset('top');
-          }}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-            cameraPreset === 'top' && !focusTarget
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800'
-          }`}
-          title="Top-Down 3D View"
-        >
-          <Compass className="w-4 h-4" />
-          <span>Top-Down</span>
-        </button>
-
-        <button
-          onClick={() => {
-            setFocusTarget(null);
-            setCameraPreset('isometric');
-            setCutawayOverride(null);
-          }}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-            cameraPreset === 'isometric' && !focusTarget
-              ? 'bg-indigo-600 text-white shadow-md ring-1 ring-indigo-400/40'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800'
-          }`}
-          title="Isometric View: 45° angle with transparent front walls"
-        >
-          <Box className="w-4 h-4" />
-          <span>Isometric</span>
-        </button>
-
-        <button
-          onClick={() => setCutawayOverride(!isCutawayActive)}
-          className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold transition-all ${
-            isCutawayActive
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-          }`}
-          title={isCutawayActive ? "Cutaway Walls Active: Front walls are dimmed to 20% opacity. Click to make all walls solid." : "Click to enable Cutaway Wall Dimming"}
-        >
-          <Layers className="w-4 h-4" />
-          <span>{isCutawayActive ? 'Cutaway On' : 'Cutaway Off'}</span>
-        </button>
-
-        {(selectedItem || selectedWall) && (
-          <button
-            onClick={handleTriggerFocus}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/30 active:scale-95 transition-all"
-            title="Frame Selected Element"
-          >
-            <Maximize2 className="w-4 h-4" />
-            <span>Focus</span>
-          </button>
-        )}
-
-        {/* Quick Rotate in Desktop Bottom Toolbar for Selected Items */}
-        {selectedItem && (
-          <div className="flex items-center bg-slate-800/90 rounded-xl border border-slate-700/60 p-0.5">
-            <button
-              onClick={() => onRotate(-Math.PI / 4)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-700 active:scale-95 transition-all"
-              title="Rotate -45°"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-indigo-400" />
-              <span>-45°</span>
-            </button>
-            <div className="w-px h-4 bg-slate-700 mx-0.5" />
-            <button
-              onClick={() => onRotate(Math.PI / 4)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-700 active:scale-95 transition-all"
-              title="Rotate +45° (Keyboard: R)"
-            >
-              <RotateCw className="w-3.5 h-3.5 text-indigo-400" />
-              <span>+45°</span>
-            </button>
+        {cameraPreset === 'walk' && <>
+          <div className="flex items-center gap-4 mt-3">
+            {effectiveIsMobile && <WalkJoystick onChange={(x, z) => { walkMovement.current = [x, z]; }} />}
+            <div className="flex-1 space-y-2">
+              <p className="text-xs text-slate-600">{effectiveIsMobile ? 'Joystick to walk. Drag the view with your other thumb to look.' : 'WASD / arrows: move · Q / E: turn · Click scene for mouse look · Esc: release mouse'}</p>
+              <label className="text-xs text-slate-600 block">Walking speed<select aria-label="Walking speed" className="mt-1 min-h-11 w-full rounded-xl bg-slate-100 px-2" value={walkSpeed} onChange={event => setWalkSpeed(Number(event.target.value))}><option value={0.6}>Slow</option><option value={1.2}>Normal</option><option value={2}>Fast</option></select></label>
+            </div>
           </div>
-        )}
-
-        <div className="w-px h-6 bg-slate-700/60 mx-1" />
-
-        <button
-          onClick={() => setGridVisible(!gridVisible)}
-          className={`p-2.5 rounded-xl transition-all ${
-            gridVisible ? 'bg-slate-800 text-indigo-400' : 'text-slate-400 hover:bg-slate-800'
-          }`}
-          title="Toggle 3D Floor Grid"
-        >
-          <Grid className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={() => {
-            setFocusTarget(null);
-            setCameraPreset('perspective');
-            if (controlsRef.current) {
-              controlsRef.current.target.set(targetX, 0, targetZ);
-              controlsRef.current.update();
-            }
-          }}
-          className="p-2.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"
-          title="Reset Camera Target"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        </>}
       </div>
 
       <button className="absolute top-16 md:top-4 right-4 z-20 min-h-11 rounded-xl bg-white/95 border border-slate-200 px-3 text-xs font-medium text-slate-700 shadow-sm" aria-pressed={minimalStyle} onClick={() => setMinimalStyle(value => !value)}>{minimalStyle ? 'Minimal finishes' : 'Patterned finishes'}</button>
       {/* Bottom Floating Keyboard & Interaction Hint (Desktop) */}
-      <div className="hidden md:flex absolute top-4 left-4 z-10 bg-slate-900/80 text-slate-300 px-3 py-2 rounded-xl text-[11px] font-medium pointer-events-none backdrop-blur-md border border-slate-700/60 shadow-xl items-center gap-2">
+      <div className="hidden absolute top-4 left-4 z-10 bg-slate-900/80 text-slate-300 px-3 py-2 rounded-xl text-[11px] font-medium pointer-events-none backdrop-blur-md border border-slate-700/60 shadow-xl items-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
         <span>Select object • Arrows: Nudge • R: Rotate • E/C: Elevate • F: Focus • Del: Delete</span>
       </div>
