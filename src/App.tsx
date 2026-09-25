@@ -12,7 +12,6 @@ import { ITEM_CATALOG } from './catalog';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { MobileHeader } from './components/MobileHeader';
 import { MobileBottomDock } from './components/MobileBottomDock';
-import { Mobile3DControlDeck } from './components/Mobile3DControlDeck';
 import { MobileCatalogDrawer } from './components/MobileCatalogDrawer';
 import { MobileInspectorDrawer } from './components/MobileInspectorDrawer';
 import { MobileLayersDrawer } from './components/MobileLayersDrawer';
@@ -814,37 +813,7 @@ export default function App() {
       </div>
 
       {/* Mobile Bottom Dock or 3D Control Deck */}
-      {view3D ? (
-        <Mobile3DControlDeck isPanelOpen={Boolean(activePanel) || isScreenshotModalOpen}
-          selectedItem={selectedItemIds.length === 1 ? items.find(i => i.id === selectedItemIds[0]) || null : null}
-          selectedWall={selectedWallId ? walls.find(w => w.id === selectedWallId) || null : null}
-          selectedFloor={selectedFloorId ? floors.find(f => f.id === selectedFloorId) || null : null}
-          onNudgeItem={(dx, dy) => handleNudgeItem(selectedItemIds[0], dx, dy)}
-          onNudgeWall={(dx, dy) => handleNudgeWall(selectedWallId || undefined, dx, dy)}
-          onNudgeFloor={(dx, dy) => handleNudgeFloor(selectedFloorId || undefined, dx, dy)}
-          onRotateItem={handleRotateSelected}
-          onElevateItem={handleElevateSelected}
-          onUpdateWall={handleUpdateWall}
-          onUpdateFloor={handleUpdateFloor}
-          onDuplicate={handleDuplicateSelected}
-          onDelete={handleDelete}
-          onOpenInspector={() => setIsInspectorOpen(true)}
-          onDeselect={() => {
-            setSelectedItemIds([]);
-            setSelectedWallId(null);
-            setSelectedFloorId(null);
-          }}
-          onOpenCatalog={() => setIsCatalogOpen(true)}
-          onOpenLayers={() => setIsLayersOpen(true)}
-          onCameraPreset={(preset) => {
-            setFocusTarget3D(null);
-            setCameraPreset3D(preset);
-          }}
-          onFocusSelection={handleFocusSelection3D}
-          currentCameraPreset={cameraPreset3D}
-          onSnapshot={handleScreenshot}
-        />
-      ) : (
+      {!view3D && (
         <MobileBottomDock gridSize={getGridSize(gridOption)}
           mode={mode}
           setMode={setMode}
@@ -933,7 +902,8 @@ export default function App() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
             </div>
-            <div className="rounded-xl bg-indigo-50 p-3 text-sm text-slate-700 mb-3"><strong>Walk / POV mode</strong><p>WASD or arrow keys — move forward, backward and sideways.</p><p>Q / E — turn left / right without a mouse.</p><p>Click the scene — mouse look. Esc — release mouse.</p><p>Mobile: joystick to walk; drag the view to look. Choose Slow, Normal or Fast walking speed.</p></div>
+            <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700 mb-3"><strong>3D preview</strong><p>Choose Rotate view or Pan view, then drag with one finger. Pinch to zoom or use − / +. Two fingers pan.</p><p>Reset returns to the room. View options contains camera step buttons and finishes.</p><p>On mobile, tap Edit before selecting an object. Properties contains its editing controls.</p></div>
+            <div className="rounded-xl bg-indigo-50 p-3 text-sm text-slate-700 mb-3"><strong>Walk / POV mode</strong><p>WASD or arrow keys — move forward, backward and sideways.</p><p>Q / E — turn left / right without a mouse.</p><p>Click the scene — mouse look. Esc — release mouse.</p><p>Mobile: left joystick to walk; drag the scene to look. Walking speed is in View options.</p></div>
             <div className="grid grid-cols-2 gap-y-3 text-sm text-slate-600">
               <div className="font-medium text-slate-800">Select Mode</div>
               <div className="text-right">

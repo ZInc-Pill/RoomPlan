@@ -1,5 +1,6 @@
 import { isOpening } from '../utils/openingAttachment';
-import { useState, useCallback, useRef } from 'react';
+import { predictOpeningDrag, type OpeningDragPreview } from '../utils/openingDrag';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Point, PlacedItem, Wall } from '../types';
 import { ITEM_CATALOG } from '../catalog';
 import { cmToPx } from '../utils/coordinates';
@@ -18,6 +19,7 @@ export function getItemBounds(item: PlacedItem): BoundingBox {
 
 export interface DraggingItemState {
   id: string;
+  pointerId: number;
   offsetX: number;
   offsetY: number;
   startX: number;
@@ -46,6 +48,7 @@ export interface UseFurnitureInteractionResult {
   cancelDragging: () => void;
   getItemBounds: (item: PlacedItem) => BoundingBox;
   snapGuides: { x: number | null; y: number | null };
+  openingPreview: OpeningDragPreview | null;
 }
 
 export function useFurnitureInteraction({
@@ -60,6 +63,8 @@ export function useFurnitureInteraction({
   onUpdateItems,
 }: UseFurnitureInteractionOptions): UseFurnitureInteractionResult {
   const [draggingItem, setDraggingItem] = useState<DraggingItemState | null>(null);
+  const [openingPreview, setOpeningPreview] = useState<OpeningDragPreview | null>(null);
+  const previewRef = useRef<OpeningDragPreview | null>(null);
   const [snapGuides, setSnapGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
 
   const activeSnapXRef = useRef<number | null>(null);
@@ -76,6 +81,9 @@ export function useFurnitureInteraction({
   const handleItemPointerDown = useCallback((e: React.PointerEvent, item: PlacedItem) => {
     if (mode !== 'SELECT' || e.button !== 0 || !e.isPrimary) return;
     e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    previewRef.current = null;
+    setOpeningPreview(null);
     selectItem(e, item.id);
     const pt = getPoint(e);
     
@@ -84,6 +92,7 @@ export function useFurnitureInteraction({
     
     setDraggingItem({
       id: item.id,
+      pointerId: e.pointerId,
       offsetX: pt.x - item.x,
       offsetY: pt.y - item.y,
       startX: pt.x,
@@ -100,6 +109,7 @@ export function useFurnitureInteraction({
     if (mode !== 'SELECT' || !draggingItem) {
       return { handled: false };
     }
+    if (e.pointerId !== draggingItem.pointerId) return { handled: true };
 
     if (!draggingItem.hasMoved) {
       if (Math.hypot(pt.x - draggingItem.startX, pt.y - draggingItem.startY) * zoom > FURNITURE_DRAG_THRESHOLD) {
@@ -144,10 +154,12 @@ export function useFurnitureInteraction({
     const rawDraggedX = pt.x - draggingItem.offsetX;
     const rawDraggedY = pt.y - draggingItem.offsetY;
     
-    // Wall-hosted openings use raw movement; document reconciliation owns wall alignment.
+    // Keep the document stable until drop; raw pointer movement never inherits a snap.
     if (activeSelectedIds.length === 1 && isOpening(draggedObj)) {
       setSnapGuides({ x: null, y: null });
-      onUpdateItems(currentItems.map(item => item.id === draggedObj.id ? { ...item, x: rawDraggedX, y: rawDraggedY } : item));
+      const preview = predictOpeningDrag({ ...draggedObj, x: rawDraggedX, y: rawDraggedY }, wallsRef.current, currentItems, zoom, previewRef.current?.wall?.id);
+      previewRef.current = preview;
+      setOpeningPreview(preview);
       return { handled: true };
     }
 
@@ -212,6 +224,13 @@ export function useFurnitureInteraction({
 
   const handlePointerUp = useCallback((_e?: React.PointerEvent): { handled: boolean } => {
     if (draggingItem) {
+      if (_e && _e.pointerId !== draggingItem.pointerId) return { handled: true };
+      const preview = previewRef.current;
+      if (_e?.type !== 'pointercancel' && preview?.valid && preview.placement) {
+        onUpdateItems(itemsRef.current.map(item => item.id === preview.placement!.id ? preview.placement! : item));
+      }
+      previewRef.current = null;
+      setOpeningPreview(null);
       setDraggingItem(null);
       setSnapGuides({ x: null, y: null });
       activeSnapXRef.current = null;
@@ -219,14 +238,26 @@ export function useFurnitureInteraction({
       return { handled: true };
     }
     return { handled: false };
-  }, [draggingItem]);
+  }, [draggingItem, onUpdateItems]);
 
   const cancelDragging = useCallback(() => {
+    previewRef.current = null;
+    setOpeningPreview(null);
     setDraggingItem(null);
     setSnapGuides({ x: null, y: null });
     activeSnapXRef.current = null;
     activeSnapYRef.current = null;
   }, []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') cancelDragging(); };
+    window.addEventListener('blur', cancelDragging);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('blur', cancelDragging);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [cancelDragging]);
 
   const isDraggingItem = useCallback((id: string) => {
     return draggingItem?.id === id;
@@ -241,5 +272,6 @@ export function useFurnitureInteraction({
     cancelDragging,
     getItemBounds,
     snapGuides,
+    openingPreview,
   };
 }

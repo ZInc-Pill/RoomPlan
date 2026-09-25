@@ -1,4 +1,5 @@
 import { WalkJoystick } from './WalkJoystick';
+import { PreviewNavigation, type CameraAction } from './PreviewNavigation';
 import { WalkCamera } from './WalkCamera';
 import { getProceduralTexture } from '../utils/proceduralTextures';
 import { KitchenFixtures, KITCHEN_FIXTURE_IDS } from './KitchenFixtures';
@@ -48,7 +49,6 @@ import {
   Move
 } from 'lucide-react';
 import { BlenderMoveGizmo } from './BlenderMoveGizmo';
-import { UniversalJoystick } from './UniversalJoystick';
 
 const MinimalStyleContext = createContext(true);
 
@@ -468,7 +468,7 @@ function Wall3D({
                   {Math.round(wallThickness * 2.5)}cm thk • {(wallHeight / 50).toFixed(1)}m h
                 </span>
 
-                {/* Action buttons hidden on mobile since Mobile3DControlDeck provides them */}
+                {/* Mobile actions live in the Properties panel. */}
                 <div className="hidden sm:flex items-center gap-1.5">
                   {onUpdateThickness && (
                     <>
@@ -1279,11 +1279,13 @@ export function Canvas3D({
 }: Canvas3DProps) {
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [hoveredWallId, setHoveredWallId] = useState<string | null>(null);
-  const [gridVisible, setGridVisible] = useState<boolean>(false);
+  const gridVisible = false;
   const [minimalStyle, setMinimalStyle] = useState(true);
   const [localCameraPreset, setLocalCameraPreset] = useState<'perspective' | 'walk' | 'isometric'>('perspective');
   const [localFocusTarget, setLocalFocusTarget] = useState<[number, number, number] | null>(null);
-  const [cutawayOverride, setCutawayOverride] = useState<boolean | null>(null);
+  const [gesture, setGesture] = useState<'rotate' | 'pan'>('rotate');
+  const [editing, setEditing] = useState(false);
+  const [resetVersion, setResetVersion] = useState(0);
 
   const cameraPreset = propCameraPreset || localCameraPreset;
   const focusTarget = propFocusTarget !== undefined ? propFocusTarget : localFocusTarget;
@@ -1292,9 +1294,9 @@ export function Canvas3D({
   const setCameraPreset = (preset: 'perspective' | 'walk' | 'isometric') => {
     setLocalCameraPreset(preset);
     onCameraPresetChange?.(preset);
-    if (preset === 'isometric') {
-      setCutawayOverride(null); // automatic cutaway in isometric
-    }
+    setEditing(false);
+    onSelect([], null, null, null);
+    walkMovement.current = [0, 0];
   };
 
   const setFocusTarget = (target: [number, number, number] | null) => {
@@ -1305,10 +1307,11 @@ export function Canvas3D({
   const effectiveIsMobile = isMobile || (typeof window !== 'undefined' && window.innerWidth < 768);
 
   const controlsRef = useRef<any>(null);
+  const pointerStart = useRef<[number, number]>([0, 0]);
+  const pointerTravel = useRef(0);
   const [walkSpeed, setWalkSpeed] = useState(1.2);
   const walkMovement = useRef<[number, number]>([0, 0]);
 
-  const [controlsExpanded, setControlsExpanded] = useState(false);
   const [snapMode, setSnapMode] = useState(true);
   const nudgeAccumulator = useRef({ x: 0, y: 0 });
 
@@ -1342,6 +1345,27 @@ export function Canvas3D({
   const selectedWall = selectedWallId ? walls.find(w => w.id === selectedWallId) || null : null;
   const selectedFloor = selectedFloorId ? floors.find(f => f.id === selectedFloorId) || null : null;
   const selectedItemType = selectedItem ? ITEM_CATALOG.find(c => c.id === selectedItem.typeId) : null;
+  const canSelect = !interactionBlocked && cameraPreset !== 'walk' && (!effectiveIsMobile || editing);
+  const selectInPreview: typeof onSelect = (...selection) => { if (canSelect) onSelect(...selection); };
+  const cameraAction = (action: CameraAction) => {
+    const controls = controlsRef.current;
+    if (!controls || interactionBlocked) return;
+    const camera = controls.object;
+    const offset = camera.position.clone().sub(controls.target);
+    if (action === 'in' || action === 'out') {
+      offset.setLength(THREE.MathUtils.clamp(offset.length() * (action === 'in' ? 0.8 : 1.25), 40, 6000));
+      camera.position.copy(controls.target).add(offset);
+    } else if (gesture === 'rotate') {
+      const spherical = new THREE.Spherical().setFromVector3(offset);
+      spherical.theta += action === 'left' ? 0.2 : action === 'right' ? -0.2 : 0;
+      spherical.phi = THREE.MathUtils.clamp(spherical.phi + (action === 'up' ? -0.15 : action === 'down' ? 0.15 : 0), 0.15, Math.PI / 2 - 0.05);
+      camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(spherical));
+    } else {
+      const direction = new THREE.Vector3(action === 'left' ? -1 : action === 'right' ? 1 : 0, action === 'up' ? 1 : action === 'down' ? -1 : 0, 0).applyQuaternion(camera.quaternion).multiplyScalar(offset.length() * 0.08);
+      camera.position.add(direction); controls.target.add(direction);
+    }
+    controls.update();
+  };
 
   const selectedFloorArea = useMemo(() => {
     if (!selectedFloor || selectedFloor.points.length < 3) return 0;
@@ -1419,7 +1443,7 @@ export function Canvas3D({
   // Keyboard navigation and shortcuts for desktop 3D
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (cameraPreset === 'walk' || interactionBlocked || isInteractiveElement(e.target) || e.ctrlKey || e.metaKey) return;
+      if (cameraPreset === 'walk' || interactionBlocked || (effectiveIsMobile && !editing) || isInteractiveElement(e.target) || e.ctrlKey || e.metaKey) return;
 
       const step = e.shiftKey 
         ? (snapMode ? 50 : 10) 
@@ -1475,12 +1499,13 @@ export function Canvas3D({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cameraPreset, interactionBlocked, selectedItem, selectedWall, selectedFloor, snapMode, onUpdateItem, onUpdateWall, onUpdateFloor, onRotate, onElevate, onDeleteItem, onDeleteWall, onDeleteFloor, onSelect]);
+  }, [cameraPreset, interactionBlocked, effectiveIsMobile, editing, selectedItem, selectedWall, selectedFloor, snapMode, onUpdateItem, onUpdateWall, onUpdateFloor, onRotate, onElevate, onDeleteItem, onDeleteWall, onDeleteFloor, onSelect]);
 
 
   return (
     <MinimalStyleContext.Provider value={minimalStyle}>
-    <div style={{ pointerEvents: interactionBlocked ? 'none' : undefined }} className="w-full h-full bg-[#f3f2ef] select-none touch-none relative overflow-hidden">
+    <div style={{ pointerEvents: interactionBlocked ? 'none' : undefined }} className="w-full h-full bg-[#f3f2ef] select-none touch-none relative overflow-hidden flex flex-col">
+      <div className="relative flex-1 min-h-0" onClickCapture={event => { if (!canSelect || pointerTravel.current > 6) event.stopPropagation(); }} onPointerDownCapture={event => { pointerStart.current = [event.clientX, event.clientY]; pointerTravel.current = 0; }} onPointerMoveCapture={event => { if (event.buttons) pointerTravel.current = Math.max(pointerTravel.current, Math.hypot(event.clientX - pointerStart.current[0], event.clientY - pointerStart.current[1])); }}>
       {/* 3D WebGL Canvas */}
       <Canvas 
         gl={{ preserveDrawingBuffer: true }} 
@@ -1511,8 +1536,8 @@ export function Canvas3D({
             <Floor3D 
               key={f.id} 
               floor={f} 
-              isSelected={selectedFloorId === f.id}
-              onSelect={() => onSelect([], null, f.id, null)}
+              isSelected={canSelect && selectedFloorId === f.id}
+              onSelect={() => selectInPreview([], null, f.id, null)}
               onDelete={onDeleteFloor}
               onDuplicate={onDuplicate}
             />
@@ -1522,9 +1547,9 @@ export function Canvas3D({
           <WallsCutawayManager
             walls={walls}
             items={items}
-            selectedWallId={selectedWallId}
+            selectedWallId={canSelect ? selectedWallId : null}
             hoveredWallId={hoveredWallId}
-            onSelectWall={(id) => onSelect([], id, null, null)}
+            onSelectWall={(id) => selectInPreview([], id, null, null)}
             onHoverWall={(hover, id) => setHoveredWallId(hover ? id : null)}
             onDeleteWall={onDeleteWall}
             onUpdateWall={onUpdateWall}
@@ -1536,10 +1561,10 @@ export function Canvas3D({
             <Item3D 
               key={item.id} 
               item={item} 
-              isSelected={selectedItemIds.includes(item.id)}
+              isSelected={canSelect && selectedItemIds.includes(item.id)}
               isHovered={hoveredItemId === item.id}
               showControls={cameraPreset !== 'walk' && !effectiveIsMobile && !interactionBlocked}
-              onSelect={() => onSelect([item.id], null, null, null)}
+              onSelect={() => selectInPreview([item.id], null, null, null)}
               onHover={(hover) => setHoveredItemId(hover ? item.id : null)}
               onRotate={onRotate}
               onElevate={onElevate}
@@ -1595,21 +1620,24 @@ export function Canvas3D({
 
 
         <OrbitControls 
+          key={`controls-${cameraPreset}-${resetVersion}`}
           enabled={!interactionBlocked && cameraPreset !== 'walk'}
           ref={controlsRef}
           // Keep the familiar touch map in every camera preset; no hidden pan mode.
-          touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
+          touches={{ ONE: gesture === 'pan' ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
+          mouseButtons={{ LEFT: gesture === 'pan' ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
           screenSpacePanning
-          rotateSpeed={1}
-          panSpeed={1}
+          rotateSpeed={0.6}
+          panSpeed={0.8}
           zoomSpeed={1}
           enableDamping
-          dampingFactor={0.05}
+          dampingFactor={0.12}
+          minDistance={40}
           maxPolarAngle={Math.PI / 2 - 0.05} 
           maxDistance={6000} 
         />
 
-        {cameraPreset === 'walk' ? <WalkCamera start={[targetX, targetZ]} movement={walkMovement} speed={walkSpeed} blocked={interactionBlocked} /> : <CameraController
+        {cameraPreset === 'walk' ? <WalkCamera key={`walk-${resetVersion}`} start={[targetX, targetZ]} movement={walkMovement} speed={walkSpeed} blocked={interactionBlocked} /> : <CameraController key={`orbit-${resetVersion}`}
           preset={cameraPreset}
           focusPos={focusTarget}
           defaultTarget={[targetX, 0, targetZ]}
@@ -1618,27 +1646,10 @@ export function Canvas3D({
         />}
       </Canvas>
 
-      <div data-editor-control className="absolute bottom-[calc(0.5rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-sm rounded-2xl bg-white/95 p-2 shadow-lg">
-        <div className="grid grid-cols-3 gap-2">
-          {(['perspective', 'walk', 'isometric'] as const).map(mode => <button key={mode} aria-pressed={cameraPreset === mode} className={cameraPreset === mode ? 'min-h-11 rounded-xl bg-indigo-600 text-white' : 'min-h-11 rounded-xl bg-slate-100 text-slate-700'} onClick={() => { setFocusTarget(null); if (mode === 'walk') onSelect([], null, null, null); setCameraPreset(mode); }}>{mode === 'perspective' ? 'General' : mode === 'walk' ? 'Walk' : 'Isometric'}</button>)}
-        </div>
-        {cameraPreset === 'walk' && <>
-          <div className="flex items-center gap-4 mt-3">
-            {effectiveIsMobile && <WalkJoystick onChange={(x, z) => { walkMovement.current = [x, z]; }} />}
-            <div className="flex-1 space-y-2">
-              <p className="text-xs text-slate-600">{effectiveIsMobile ? 'Joystick to walk. Drag the view with your other thumb to look.' : 'WASD / arrows: move · Q / E: turn · Click scene for mouse look · Esc: release mouse'}</p>
-              <label className="text-xs text-slate-600 block">Walking speed<select aria-label="Walking speed" className="mt-1 min-h-11 w-full rounded-xl bg-slate-100 px-2" value={walkSpeed} onChange={event => setWalkSpeed(Number(event.target.value))}><option value={0.6}>Slow</option><option value={1.2}>Normal</option><option value={2}>Fast</option></select></label>
-            </div>
-          </div>
-        </>}
+      {cameraPreset === 'walk' && effectiveIsMobile && !interactionBlocked && <div data-editor-control className="absolute bottom-4 left-4 z-20" onPointerDown={event => event.stopPropagation()}><WalkJoystick onChange={(x, z) => { walkMovement.current = [x, z]; }} /><p className="mt-1 text-center text-xs font-semibold text-slate-600">Walk</p></div>}
       </div>
-
-      <button className="absolute top-16 md:top-4 right-4 z-20 min-h-11 rounded-xl bg-white/95 border border-slate-200 px-3 text-xs font-medium text-slate-700 shadow-sm" aria-pressed={minimalStyle} onClick={() => setMinimalStyle(value => !value)}>{minimalStyle ? 'Minimal finishes' : 'Patterned finishes'}</button>
-      {/* Bottom Floating Keyboard & Interaction Hint (Desktop) */}
-      <div className="hidden absolute top-4 left-4 z-10 bg-slate-900/80 text-slate-300 px-3 py-2 rounded-xl text-[11px] font-medium pointer-events-none backdrop-blur-md border border-slate-700/60 shadow-xl items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-        <span>Select object • Arrows: Nudge • R: Rotate • E/C: Elevate • F: Focus • Del: Delete</span>
-      </div>
+      {effectiveIsMobile && canSelect && (selectedItem || selectedWall || selectedFloor) && <div data-editor-control className="shrink-0 flex items-center gap-2 border-t border-slate-200 bg-white px-3 py-2"><span className="truncate text-xs font-semibold flex-1">{selectedItemType?.name ?? (selectedWall ? 'Wall' : 'Floor')}</span><button className="min-h-11 px-3 rounded-xl bg-indigo-50 text-xs text-indigo-700" onClick={onOpenInspector}>Properties</button><button className="min-h-11 px-3 rounded-xl bg-slate-100 text-xs" onClick={handleTriggerFocus}>Focus</button><button className="min-h-11 px-3 rounded-xl bg-slate-100 text-xs" onClick={() => onSelect([], null, null, null)}>Done</button></div>}
+      <PreviewNavigation blocked={interactionBlocked} mode={cameraPreset} onMode={mode => { setFocusTarget(null); setCameraPreset(mode); }} mobile={effectiveIsMobile} gesture={gesture} onGesture={setGesture} onAction={cameraAction} onReset={() => { setFocusTarget(null); walkMovement.current = [0, 0]; setResetVersion(value => value + 1); }} editing={editing} onEdit={() => { setEditing(value => !value); onSelect([], null, null, null); }} minimal={minimalStyle} onMinimal={() => setMinimalStyle(value => !value)} speed={walkSpeed} onSpeed={setWalkSpeed} />
     </div>
     </MinimalStyleContext.Provider>
   );

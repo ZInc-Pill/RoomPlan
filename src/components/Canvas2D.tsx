@@ -149,6 +149,7 @@ export function Canvas2D({
     handlePointerUp: handleFurniturePointerUp,
     cancelDragging: cancelFurnitureDragging,
     snapGuides,
+    openingPreview,
   } = useFurnitureInteraction({
     mode,
     items,
@@ -424,7 +425,7 @@ export function Canvas2D({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
+      onPointerLeave={(e) => { if (!e.buttons) handlePointerUp(e); }}
       onPointerCancel={handlePointerUp}
       onDoubleClick={handleDoubleClick}
     >
@@ -960,7 +961,7 @@ export function Canvas2D({
           <div
             key={item.id}
             onPointerDown={(e) => handleItemPointerDown(e, item)}
-            className={`absolute shadow-sm transition-shadow pointer-events-auto ${typeInfo.shape !== 'door' ? 'overflow-hidden' : ''}`}
+            className={`absolute shadow-sm transition-shadow pointer-events-auto ${!['door', 'window'].includes(typeInfo.shape) ? 'overflow-hidden' : ''}`}
             style={{
               left: item.x,
               top: item.y,
@@ -976,6 +977,9 @@ export function Canvas2D({
               zIndex: isSelected ? 100 : 10
             }}
           >
+            {mode === 'SELECT' && ['door', 'window'].includes(typeInfo.shape) && (
+              <div aria-label={`Drag ${typeInfo.name}`} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: Math.max(w, 44 / zoom), height: Math.max(d, 44 / zoom), touchAction: 'none' }} />
+            )}
             {typeInfo.shape === 'bed' && (
               <>
                 <div className="absolute top-2 left-2 right-2 h-1/4 bg-white/50 rounded-sm"></div>
@@ -1079,6 +1083,19 @@ export function Canvas2D({
           </div>
         );
       })}
+
+      {openingPreview && (() => {
+        const preview = openingPreview;
+        const target = preview.placement ?? preview.raw;
+        const type = ITEM_CATALOG.find(entry => entry.id === target.typeId)!;
+        const color = preview.valid ? '#059669' : '#e11d48';
+        return <div className="pointer-events-none absolute inset-0 z-[160]" aria-hidden="true">
+          {preview.wall && <svg className="absolute overflow-visible" width="1" height="1"><line x1={preview.wall.start.x} y1={preview.wall.start.y} x2={preview.wall.end.x} y2={preview.wall.end.y} stroke={color} strokeOpacity="0.22" strokeWidth={preview.wall.thickness + 10 / zoom} /></svg>}
+          <div style={{ position: 'absolute', left: preview.raw.x, top: preview.raw.y, width: cmToPx(preview.raw.width ?? type.width), height: Math.max(cmToPx(preview.raw.depth ?? type.depth), 6 / zoom), transform: `translate(-50%, -50%) rotate(${preview.raw.rotation}rad)`, border: `${1 / zoom}px dashed #64748b`, background: '#94a3b833' }} />
+          <div style={{ position: 'absolute', left: target.x, top: target.y, width: cmToPx(target.width ?? type.width), height: Math.max(cmToPx(target.depth ?? type.depth), 8 / zoom), transform: `translate(-50%, -50%) rotate(${target.rotation}rad)`, border: `${2 / zoom}px solid ${color}`, background: preview.valid ? '#10b98166' : '#fb718566', boxShadow: `0 0 ${10 / zoom}px ${color}66` }} />
+          <div style={{ position: 'absolute', left: target.x, top: target.y - 48 / zoom, transform: `translate(-50%, -100%) scale(${1 / zoom})`, transformOrigin: 'bottom center', background: color }} className="rounded-lg px-3 py-2 text-xs font-semibold text-white whitespace-nowrap shadow-lg">{preview.message}</div>
+        </div>;
+      })()}
 
       {mode === 'SELECT' && !isDrawerOpen && selectedItemIds.length === 1 && items.filter(item => item.id === selectedItemIds[0] && ['railing', 'corner_railing'].includes(ITEM_CATALOG.find(type => type.id === item.typeId)?.shape || '')).map(item => (
         <RailingEndpoints key={item.id} item={item} zoom={zoom} gridSize={currentGridSize} getPoint={getPoint} onUpdate={updated => onUpdateItems(items.map(current => current.id === updated.id ? updated : current))} />
