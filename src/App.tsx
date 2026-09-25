@@ -43,11 +43,27 @@ export default function App() {
   const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
 
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
+  const [appViewportHeight, setAppViewportHeight] = useState(() => Math.round(window.visualViewport?.height ?? window.innerHeight));
   useEffect(() => {
     const query = window.matchMedia('(max-width: 767px)');
     const changed = () => { setIsMobile(query.matches); if (!query.matches) setActivePanel(null); };
     query.addEventListener('change', changed);
     return () => query.removeEventListener('change', changed);
+  }, []);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const updateHeight = () => setAppViewportHeight(Math.round(viewport?.height ?? window.innerHeight));
+    updateHeight();
+    viewport?.addEventListener('resize', updateHeight);
+    viewport?.addEventListener('scroll', updateHeight);
+    window.addEventListener('resize', updateHeight);
+    window.addEventListener('orientationchange', updateHeight);
+    return () => {
+      viewport?.removeEventListener('resize', updateHeight);
+      viewport?.removeEventListener('scroll', updateHeight);
+      window.removeEventListener('resize', updateHeight);
+      window.removeEventListener('orientationchange', updateHeight);
+    };
   }, []);
 
   // Modals & Drawers State
@@ -538,7 +554,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden relative">
+    <div style={{ height: appViewportHeight }} className="flex flex-col w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden relative">
       {/* Mobile Top Header */}
       <MobileHeader 
         view3D={view3D}
@@ -596,7 +612,7 @@ export default function App() {
         </div>
       </header>
       
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <Toolbar 
           mode={mode}
           setMode={setMode}
