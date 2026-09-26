@@ -32,6 +32,6 @@ export function useDocumentHistory() {
       window.removeEventListener('blur', cancel);
     };
   }, []);
-  const update = useCallback((change: (document: PlanDocument) => PlanDocument) => dispatch({ type: 'update', update: change }), []);
+  const update = useCallback((change: (document: PlanDocument) => PlanDocument, exactPlacement = false) => dispatch({ type: 'update', update: change, exactPlacement }), []);
   return { state, update, undo: () => dispatch({ type: 'undo' }), redo: () => dispatch({ type: 'redo' }) };
 }

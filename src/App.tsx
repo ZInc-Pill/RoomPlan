@@ -651,7 +651,7 @@ export default function App() {
               } catch (error) { setProjectError(error instanceof Error ? error.message : 'Could not restore backup.'); }
             }}>Restore previous save</button>
             {selectedItemIds.length === 1 && items.filter(item => item.id === selectedItemIds[0] && isOpening(item)).map(item => <div key={item.id} className="border-t mt-1 pt-1">
-              <span>{item.wallId ? 'Attached to wall · movement follows wall' : 'Door/window not attached'}</span>
+              <span>{item.wallId ? (isMobile ? 'Attached · drag freely, release near a wall to snap' : 'Attached to wall · movement follows wall') : 'Door/window not attached'}</span>
               <button className="ml-2 underline min-h-9" onClick={() => {
                 if (item.wallId) {
                   const { wallId, wallOffset, ...detached } = item;
@@ -715,6 +715,7 @@ export default function App() {
               onUpdateWalls={handleSetWalls}
               onUpdateFloors={handleSetFloors}
               onUpdateItems={handleSetItems}
+              onCommitMobileItems={nextItems => updateDocument(doc => ({ ...doc, items: nextItems }), true)}
               onUpdateComments={handleSetComments}
               setMode={setMode}
               onDuplicateFloor={() => handleDuplicateSelected()}

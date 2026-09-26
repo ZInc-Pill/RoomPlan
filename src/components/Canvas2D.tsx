@@ -25,6 +25,7 @@ import { snapPointToGrid } from '../utils/snapping';
 import { useCanvasViewport } from '../hooks/useCanvasViewport';
 import { useCanvasSelection } from '../hooks/useCanvasSelection';
 import { useFurnitureInteraction, getItemBounds } from '../hooks/useFurnitureInteraction';
+import { useMobileItemDrag } from '../hooks/useMobileItemDrag';
 import { useWallInteraction } from '../hooks/useWallInteraction';
 import { useFloorInteraction } from '../hooks/useFloorInteraction';
 import { SvgFloorPatterns } from './SvgFloorPatterns';
@@ -51,6 +52,7 @@ interface Canvas2DProps {
   onUpdateWalls: (walls: Wall[]) => void;
   onUpdateFloors: (floors: Floor[]) => void;
   onUpdateItems: (items: PlacedItem[]) => void;
+  onCommitMobileItems: (items: PlacedItem[]) => void;
   onUpdateComments: (comments: CommentType[]) => void;
   onSelect: (itemIds: string[], wallId: string | null, floorId: string | null, commentId: string | null) => void;
   setMode?: (mode: AppMode) => void;
@@ -63,7 +65,7 @@ export function Canvas2D({
   isMobile = false,
   dragSnapMode, setDragSnapMode,
   walls, floors, items, comments, mode, selectedItemIds, selectedWallId, selectedFloorId, selectedCommentId, 
-  onUpdateWalls, onUpdateFloors, onUpdateItems, onUpdateComments, onSelect, setMode, onDuplicateFloor, onDeleteFloor,
+  onUpdateWalls, onUpdateFloors, onUpdateItems, onCommitMobileItems, onUpdateComments, onSelect, setMode, onDuplicateFloor, onDeleteFloor,
   gridOption, setGridOption, isDrawerOpen = false
 }: Canvas2DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -149,16 +151,15 @@ export function Canvas2D({
   // Furniture Interaction Hook
   const freeDrag = dragSnapMode === 'free';
   const {
-    isDraggingItem,
-    handleItemPointerDown,
+    isDraggingItem: isDesktopDraggingItem,
+    handleItemPointerDown: handleDesktopItemPointerDown,
     handlePointerMove: handleFurniturePointerMove,
     handlePointerUp: handleFurniturePointerUp,
     cancelDragging: cancelFurnitureDragging,
     snapGuides,
-    openingPreview,
+    openingPreview: desktopOpeningPreview,
   } = useFurnitureInteraction({
     freeDrag,
-    mobile: isMobile,
     mode,
     items,
     walls,
@@ -169,7 +170,16 @@ export function Canvas2D({
     selectItem,
     onUpdateItems,
   });
-  cancelFurnitureDraggingRef.current = cancelFurnitureDragging;
+  const mobileDrag = useMobileItemDrag({ freeDrag, mode, items, walls, selectedItemIds, currentGridSize, zoom, getPoint, selectItem, onUpdateItems, onCommit: onCommitMobileItems });
+  cancelFurnitureDraggingRef.current = () => { mobileDrag.cancel(); cancelFurnitureDragging(); };
+  const handleItemPointerDown = (event: React.PointerEvent, item: PlacedItem) => {
+    if (isMobile || event.pointerType === 'touch') mobileDrag.down(event, item);
+    else handleDesktopItemPointerDown(event, item);
+  };
+  const isDraggingItem = (id: string) => mobileDrag.isDragging(id) || isDesktopDraggingItem(id);
+  const openingPreview = mobileDrag.visual ? mobileDrag.visual.preview : desktopOpeningPreview;
+  const draftsById = new Map(mobileDrag.visual?.items.map(item => [item.id, item]) ?? []);
+  const renderedItems = mobileDrag.visual ? items.map(item => draftsById.get(item.id) ?? item) : items;
 
   // Wall Interaction Hook
   const {
@@ -307,6 +317,7 @@ export function Canvas2D({
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (handleViewportPointerMove(e)) return;
+    if (mobileDrag.move(e)) return;
     
     const pt = getPoint(e);
 
@@ -338,6 +349,7 @@ export function Canvas2D({
 
   const handlePointerUp = (e: React.PointerEvent) => {
     handleViewportPointerUp(e);
+    if (mobileDrag.up(e)) return;
 
     const { handled } = handleSelectionPointerUp(e);
     if (handled) return;
@@ -961,7 +973,7 @@ export function Canvas2D({
       </svg>
 
       {/* Items */}
-      {items.map(item => {
+      {renderedItems.map(item => {
         const typeInfo = ITEM_CATALOG.find(i => i.id === item.typeId);
         if (!typeInfo) return null;
         
@@ -976,6 +988,7 @@ export function Canvas2D({
           <div
             key={item.id}
             onPointerDown={(e) => handleItemPointerDown(e, item)}
+            onLostPointerCapture={() => { if (mobileDrag.active()) mobileDrag.cancel(); }}
             className={`absolute shadow-sm transition-shadow pointer-events-auto ${!isMobile && !['door', 'window'].includes(typeInfo.shape) ? 'overflow-hidden' : ''}`}
             style={{
               left: item.x,
@@ -1468,7 +1481,7 @@ export function Canvas2D({
       </div>
 
       <div className="absolute top-16 md:top-6 right-3 md:right-6 flex items-center gap-1 bg-white/90 backdrop-blur p-1 rounded-xl border border-slate-200 shadow-sm z-10">
-        <button aria-label="Free object dragging" aria-pressed={freeDrag} onClick={() => setDragSnapMode(freeDrag ? 'snap' : 'free')} className="min-h-11 min-w-11 px-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50" title="Furniture drag snapping; windows stay aligned to walls">{freeDrag ? 'Free' : 'Snap'}</button>
+        <button aria-label="Free object dragging" aria-pressed={freeDrag} onClick={() => setDragSnapMode(freeDrag ? 'snap' : 'free')} className="min-h-11 min-w-11 px-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50" title={isMobile ? 'Furniture snaps on release; windows attach near walls' : 'Furniture drag snapping; windows stay aligned to walls'}>{freeDrag ? 'Free' : 'Snap'}</button>
         <button 
           onClick={() => setGridOption(gridOption === 3 ? 1 : (gridOption + 1) as 1|2|3)}
           title={`Toggle Grid Size (Current: ${gridOption === 1 ? '0.5m' : gridOption === 2 ? '0.25m' : '0.125m'})`}

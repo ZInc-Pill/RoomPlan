@@ -1,10 +1,10 @@
-import { reconcileOpenings } from './openingAttachment';
+import { reconcileOpenings, openingValidationError } from './openingAttachment';
 import type { Wall, Floor, PlacedItem, CommentType } from '../types';
 
 export type PlanDocument = { walls: Wall[]; floors: Floor[]; items: PlacedItem[]; comments: CommentType[] };
 export type HistoryState = { error?: string; past: PlanDocument[]; present: PlanDocument; future: PlanDocument[]; start: PlanDocument | null };
 export type HistoryAction =
-  | { type: 'update'; update: (document: PlanDocument) => PlanDocument }
+  | { type: 'update'; update: (document: PlanDocument) => PlanDocument; exactPlacement?: boolean }
   | { type: 'begin' | 'commit' | 'cancel' | 'undo' | 'redo' };
 export const emptyDocument = (): PlanDocument => ({ walls: [], floors: [], items: [], comments: [] });
 export const initialHistory = (): HistoryState => ({ past: [], present: emptyDocument(), future: [], start: null });
@@ -16,7 +16,10 @@ export function documentHistory(state: HistoryState, action: HistoryAction): His
     case 'begin': return state.start ? state : { ...state, start: state.present };
     case 'update': {
       const requested = action.update(state.present);
-      const present = reconcileOpenings(state.present, requested);
+      // A drag has already resolved its target. Validate it without applying a second snap policy.
+      const present = action.exactPlacement
+        ? (openingValidationError(requested) ? state.present : requested)
+        : reconcileOpenings(state.present, requested);
       if (present === state.present && requested !== state.present) return { ...state, error: 'Edit not applied: an attached opening would overlap another opening or no longer fit its wall.' };
       if (present === state.present) return state;
       if (state.start) return { ...state, present, error: undefined };

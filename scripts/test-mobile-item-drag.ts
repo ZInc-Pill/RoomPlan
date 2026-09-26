@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import { ITEM_CATALOG } from '../src/catalog';
+import { startMobileDrag, moveMobileDrag, resolveMobileDrop } from '../src/utils/mobileItemDrag';
+import { attachNearestOpening } from '../src/utils/openingAttachment';
+import { documentHistory, initialHistory, emptyDocument } from '../src/utils/documentHistory';
+
+const wall = { id: 'wall', start: { x: 0, y: 0 }, end: { x: 400, y: 0 }, thickness: 8 };
+const opening = attachNearestOpening({ id: 'window', typeId: ITEM_CATALOG.find(t => t.shape === 'window')!.id, x: 100, y: 0, rotation: 0 }, [wall])!;
+const chair = { id: 'chair', typeId: ITEM_CATALOG.find(t => t.shape === 'bed')!.id, x: 200, y: 100, rotation: 0 };
+const doc = { ...emptyDocument(), walls: [wall], items: [opening, chair] };
+const before = JSON.stringify(doc);
+let history = documentHistory({ ...initialHistory(), present: doc }, { type: 'begin' });
+const session = startMobileDrag(1, { x: 103, y: 2 }, opening, doc.items, []);
+assert.equal(moveMobileDrag(session, { x: 104, y: 2 }, 1), null, 'tap must not move');
+for (let i = 1; i <= 100; i++) moveMobileDrag(session, { x: 103 + i, y: 2 + i }, 1);
+assert.equal(JSON.stringify(doc), before, 'all intermediate frames leave saved document untouched');
+assert.equal(history.present, doc);
+assert.equal(history.past.length, 0);
+const raw = moveMobileDrag(session, { x: 133, y: 72 }, 1)!;
+assert.equal(raw[0].x, 130, 'final displacement uses start and preserves grab offset');
+assert.equal(raw[0].y, 70);
+assert.equal(raw[0].wallId, undefined);
+const drop = resolveMobileDrop(raw, doc.items, doc.walls, 1, 20, false);
+history = documentHistory(history, { type: 'update', exactPlacement: true, update: d => ({ ...d, items: drop.items }) });
+history = documentHistory(history, { type: 'commit' });
+assert.equal(history.past.length, 1, 'one gesture produces one undo entry');
+assert.equal(history.present.items[0].y, 70);
+assert.deepEqual(documentHistory(history, { type: 'undo' }).present, doc);
+assert.deepEqual(documentHistory(documentHistory(history, { type: 'undo' }), { type: 'redo' }).present, history.present);
+
+// Detached openings at high zoom used to be reattached by the reducer's 24-world-unit rule.
+const detached = { ...opening, wallId: undefined, wallOffset: undefined, y: 50 };
+const detachedDoc = { ...doc, items: [detached, chair] };
+const nearby = resolveMobileDrop([{ ...detached, y: 20 }], detachedDoc.items, doc.walls, 2, 20, false);
+assert.equal(nearby.preview?.wall, null, '40 screen pixels is outside mobile attraction');
+const exact = documentHistory({ ...initialHistory(), present: detachedDoc }, { type: 'update', exactPlacement: true, update: d => ({ ...d, items: nearby.items }) });
+assert.equal(exact.present.items[0].y, 20);
+assert.equal(exact.present.items[0].wallId, undefined, 'history must not silently resnap resolved mobile placement');
+const near = resolveMobileDrop([{ ...detached, y: 15 }], detachedDoc.items, doc.walls, 2, 20, false);
+assert.equal(near.items[0].wallId, wall.id);
+assert.equal(near.items[0].y, 0);
+const occupied = { ...opening, id: 'occupied' };
+const blocked = resolveMobileDrop([{ ...detached, y: 10 }], [detached, occupied], doc.walls, 1, 20, false);
+assert.equal(blocked.preview?.valid, false);
+assert.equal(blocked.items[0].y, 10, 'blocked target does not freeze or jump back');
+assert.equal(blocked.items[0].wallId, undefined);
+
+const group = startMobileDrag(2, { x: 0, y: 0 }, chair, doc.items, [chair.id, opening.id]);
+const groupRaw = moveMobileDrag(group, { x: 27, y: 63 }, 1)!;
+const groupDrop = resolveMobileDrop(groupRaw, doc.items, doc.walls, 1, 20, false);
+assert.equal(groupDrop.items[1].x - groupDrop.items[0].x, chair.x - opening.x);
+assert.equal(groupDrop.items[0].wallId, undefined);
+const furniture = startMobileDrag(3, { x: 200, y: 100 }, chair, doc.items, []);
+const furnitureRaw = moveMobileDrag(furniture, { x: 257, y: 163 }, 1)!;
+assert.equal(furnitureRaw[0].x, 257, 'furniture tracks finger without grid sticking');
+assert.equal(resolveMobileDrop(furnitureRaw, doc.items, doc.walls, 1, 20, true).items[1].x, 257);
+assert.deepEqual(documentHistory(documentHistory({ ...initialHistory(), present: doc }, { type: 'begin' }), { type: 'cancel' }).present, doc);
+console.log('Mobile drag: immutable frames, grab offset, free movement, screen-space snap, blocked walls, groups, exact persistence and single-step undo passed.');
