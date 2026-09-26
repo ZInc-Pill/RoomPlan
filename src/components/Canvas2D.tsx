@@ -34,6 +34,7 @@ import { isInteractiveElement } from '../utils/input';
 type RulerMeasurement = { id: string; start: Point; end: Point; createdAt: number };
 
 interface Canvas2DProps {
+  isMobile?: boolean;
   dragSnapMode: 'snap' | 'free';
   setDragSnapMode: (mode: 'snap' | 'free') => void;
   gridOption: 1 | 2 | 3;
@@ -59,6 +60,7 @@ interface Canvas2DProps {
 }
 
 export function Canvas2D({
+  isMobile = false,
   dragSnapMode, setDragSnapMode,
   walls, floors, items, comments, mode, selectedItemIds, selectedWallId, selectedFloorId, selectedCommentId, 
   onUpdateWalls, onUpdateFloors, onUpdateItems, onUpdateComments, onSelect, setMode, onDuplicateFloor, onDeleteFloor,
@@ -156,6 +158,7 @@ export function Canvas2D({
     openingPreview,
   } = useFurnitureInteraction({
     freeDrag,
+    mobile: isMobile,
     mode,
     items,
     walls,
@@ -973,7 +976,7 @@ export function Canvas2D({
           <div
             key={item.id}
             onPointerDown={(e) => handleItemPointerDown(e, item)}
-            className={`absolute shadow-sm transition-shadow pointer-events-auto ${!['door', 'window'].includes(typeInfo.shape) ? 'overflow-hidden' : ''}`}
+            className={`absolute shadow-sm transition-shadow pointer-events-auto ${!isMobile && !['door', 'window'].includes(typeInfo.shape) ? 'overflow-hidden' : ''}`}
             style={{
               left: item.x,
               top: item.y,
@@ -989,7 +992,7 @@ export function Canvas2D({
               zIndex: isSelected ? 100 : 10
             }}
           >
-            {mode === 'SELECT' && ['door', 'window'].includes(typeInfo.shape) && (
+            {mode === 'SELECT' && (isMobile || ['door', 'window'].includes(typeInfo.shape)) && (
               <div aria-label={`Drag ${typeInfo.name}`} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: Math.max(w, 44 / zoom), height: Math.max(d, 44 / zoom), touchAction: 'none' }} />
             )}
             {typeInfo.shape === 'bed' && (

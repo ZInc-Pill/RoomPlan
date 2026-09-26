@@ -20,6 +20,10 @@ assert.equal(predictOpeningDrag({ ...item, y: 30 }, [wall], [item], 2).valid, fa
 const occupied = { ...preview.placement!, id: 'occupied' };
 assert.equal(predictOpeningDrag({ ...item, x: 130, y: 90 }, walls, [item, occupied], 1).valid, false);
 assert.equal(predictOpeningDrag(item, [{ ...wall, end: { x: 5, y: 0 } }], [item], 1).placement, null);
+const detachedFree = { ...item, wallId: undefined, wallOffset: undefined, y: 80 };
+assert.equal(predictOpeningDrag(detachedFree, [wall], [item], 1, undefined, 32, true).placement?.y, 80);
+assert.equal(predictOpeningDrag({ ...detachedFree, y: 31 }, [wall], [item], 1, undefined, 32, true).wall?.id, wall.id);
+assert.equal(predictOpeningDrag({ ...detachedFree, y: 33 }, [wall], [item], 1, undefined, 32, true).wall, null);
 console.log('Opening drag: prediction, exact drop, hysteresis, zoom, collisions and fit passed.');
 
 const vertical = { ...wall, end: { x: 0, y: 300 } };

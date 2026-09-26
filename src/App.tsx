@@ -702,7 +702,7 @@ export default function App() {
             </Suspense>
             </PreviewBoundary>
           ) : (
-            <Canvas2D dragSnapMode={dragSnapMode} setDragSnapMode={setDragSnapMode} gridOption={gridOption} setGridOption={setGridOption}
+            <Canvas2D isMobile={isMobile} dragSnapMode={dragSnapMode} setDragSnapMode={setDragSnapMode} gridOption={gridOption} setGridOption={setGridOption}
               walls={walls} 
               floors={floors}
               items={items}

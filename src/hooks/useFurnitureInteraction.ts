@@ -29,6 +29,7 @@ export interface DraggingItemState {
 
 export interface UseFurnitureInteractionOptions {
   freeDrag?: boolean;
+  mobile?: boolean;
   mode: string;
   items: PlacedItem[];
   walls: Wall[];
@@ -54,6 +55,7 @@ export interface UseFurnitureInteractionResult {
 
 export function useFurnitureInteraction({
   freeDrag = false,
+  mobile = false,
   mode,
   items,
   walls,
@@ -71,6 +73,8 @@ export function useFurnitureInteraction({
 
   const activeSnapXRef = useRef<number | null>(null);
   const activeSnapYRef = useRef<number | null>(null);
+  const mobileDropItemsRef = useRef<PlacedItem[] | null>(null);
+  const dragStartItemsRef = useRef<PlacedItem[] | null>(null);
 
   // Keep references to avoid stale closure during rapid pointer events
   const itemsRef = useRef(items);
@@ -85,6 +89,8 @@ export function useFurnitureInteraction({
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     previewRef.current = null;
+    mobileDropItemsRef.current = null;
+    dragStartItemsRef.current = itemsRef.current;
     setOpeningPreview(null);
     selectItem(e, item.id);
     const pt = getPoint(e);
@@ -114,7 +120,7 @@ export function useFurnitureInteraction({
     if (e.pointerId !== draggingItem.pointerId) return { handled: true };
 
     if (!draggingItem.hasMoved) {
-      if (Math.hypot(pt.x - draggingItem.startX, pt.y - draggingItem.startY) * zoom > FURNITURE_DRAG_THRESHOLD) {
+      if (Math.hypot(pt.x - draggingItem.startX, pt.y - draggingItem.startY) * zoom > (mobile ? 3 : FURNITURE_DRAG_THRESHOLD)) {
         setDraggingItem(prev => (prev ? { ...prev, hasMoved: true } : null));
       } else {
         return { handled: true };
@@ -159,9 +165,12 @@ export function useFurnitureInteraction({
     // Keep the document stable until drop; raw pointer movement never inherits a snap.
     if (activeSelectedIds.length === 1 && isOpening(draggedObj)) {
       setSnapGuides({ x: null, y: null });
-      const preview = predictOpeningDrag({ ...draggedObj, x: rawDraggedX, y: rawDraggedY }, wallsRef.current, currentItems, zoom, previewRef.current?.wall?.id);
+      const { wallId: _wallId, wallOffset: _wallOffset, ...detached } = draggedObj;
+      const raw = mobile ? { ...detached, x: rawDraggedX, y: rawDraggedY } : { ...draggedObj, x: rawDraggedX, y: rawDraggedY };
+      const preview = predictOpeningDrag(raw, wallsRef.current, currentItems, zoom, previewRef.current?.wall?.id, mobile ? 32 : 56, mobile);
       previewRef.current = preview;
       setOpeningPreview(preview);
+      if (mobile) onUpdateItems(currentItems.map(item => item.id === draggedObj.id ? raw : item));
       return { handled: true };
     }
 
@@ -207,6 +216,14 @@ export function useFurnitureInteraction({
     activeSnapYRef.current = snapResult.snappedY ? snapResult.guideY : null;
     setSnapGuides({ x: snapResult.guideX, y: snapResult.guideY });
 
+    if (mobile) {
+      const rawDx = rawGroupPt.x - groupCenterX, rawDy = rawGroupPt.y - groupCenterY;
+      const rawItems = currentItems.map(item => activeSelectedIds.includes(item.id) ? { ...item, x: item.x + rawDx, y: item.y + rawDy } : item);
+      mobileDropItemsRef.current = isFreeMove ? rawItems : currentItems.map(item => activeSelectedIds.includes(item.id) ? { ...item, x: item.x + snapResult.x - groupCenterX, y: item.y + snapResult.y - groupCenterY } : item);
+      onUpdateItems(rawItems);
+      return { handled: true };
+    }
+
     // The group moved by (snapResult.x - groupCenterX)
     const dx = snapResult.x - groupCenterX;
     const dy = snapResult.y - groupCenterY;
@@ -222,7 +239,7 @@ export function useFurnitureInteraction({
     }
 
     return { handled: true };
-  }, [mode, draggingItem, currentGridSize, zoom, onUpdateItems, freeDrag]);
+  }, [mode, draggingItem, currentGridSize, zoom, onUpdateItems, freeDrag, mobile]);
 
   const handlePointerUp = useCallback((_e?: React.PointerEvent): { handled: boolean } => {
     if (draggingItem) {
@@ -230,8 +247,12 @@ export function useFurnitureInteraction({
       const preview = previewRef.current;
       if (_e?.type !== 'pointercancel' && preview?.valid && preview.placement) {
         onUpdateItems(itemsRef.current.map(item => item.id === preview.placement!.id ? preview.placement! : item));
+      } else if (_e?.type !== 'pointercancel' && mobileDropItemsRef.current) {
+        onUpdateItems(mobileDropItemsRef.current);
       }
       previewRef.current = null;
+      mobileDropItemsRef.current = null;
+      dragStartItemsRef.current = null;
       setOpeningPreview(null);
       setDraggingItem(null);
       setSnapGuides({ x: null, y: null });
@@ -243,13 +264,16 @@ export function useFurnitureInteraction({
   }, [draggingItem, onUpdateItems]);
 
   const cancelDragging = useCallback(() => {
+    if (draggingItem && dragStartItemsRef.current) onUpdateItems(dragStartItemsRef.current);
     previewRef.current = null;
+    mobileDropItemsRef.current = null;
+    dragStartItemsRef.current = null;
     setOpeningPreview(null);
     setDraggingItem(null);
     setSnapGuides({ x: null, y: null });
     activeSnapXRef.current = null;
     activeSnapYRef.current = null;
-  }, []);
+  }, [draggingItem, onUpdateItems]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') cancelDragging(); };
