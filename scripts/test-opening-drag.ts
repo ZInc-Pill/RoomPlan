@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { predictOpeningDrag } from '../src/utils/openingDrag';
-import { attachNearestOpening, reconcileOpenings } from '../src/utils/openingAttachment';
+import { attachNearestOpening, reconcileOpenings, nudgeOpeningAlongWall } from '../src/utils/openingAttachment';
 import { emptyDocument } from '../src/utils/documentHistory';
 import { ITEM_CATALOG } from '../src/catalog';
 const wall = { id: 'a', start: { x: 0, y: 0 }, end: { x: 300, y: 0 }, thickness: 8 };
@@ -21,3 +21,13 @@ const occupied = { ...preview.placement!, id: 'occupied' };
 assert.equal(predictOpeningDrag({ ...item, x: 130, y: 90 }, walls, [item, occupied], 1).valid, false);
 assert.equal(predictOpeningDrag(item, [{ ...wall, end: { x: 5, y: 0 } }], [item], 1).placement, null);
 console.log('Opening drag: prediction, exact drop, hysteresis, zoom, collisions and fit passed.');
+
+const vertical = { ...wall, end: { x: 0, y: 300 } };
+const hosted = attachNearestOpening({ ...item, x: 0, y: 100 }, [vertical])!;
+assert.equal(nudgeOpeningAlongWall(hosted, [vertical], 4, 0).y, hosted.y + 4);
+assert.equal(nudgeOpeningAlongWall(hosted, [vertical], 0, -4).y, hosted.y - 4);
+assert.equal(nudgeOpeningAlongWall(hosted, [vertical], 4, 0).x, 0);
+const shifted = nudgeOpeningAlongWall(hosted, [vertical], 4, 0);
+const hostedDoc = { ...emptyDocument(), walls: [vertical], items: [hosted] };
+assert.deepEqual(reconcileOpenings(hostedDoc, { ...hostedDoc, items: [shifted] }).items[0], shifted);
+console.log('Window joystick: horizontal/vertical input follows the host wall and survives reconciliation.');

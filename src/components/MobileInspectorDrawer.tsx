@@ -7,6 +7,8 @@ import { UniversalJoystick } from './UniversalJoystick';
 import { MaterialPicker } from './MaterialPicker';
 
 interface MobileInspectorDrawerProps {
+  glideSnapMode: 'snap' | 'free';
+  setGlideSnapMode: (mode: 'snap' | 'free') => void;
   isOpen: boolean;
   gridSize: number;
   onClose: () => void;
@@ -36,6 +38,7 @@ const FLOOR_COLOR_PRESETS = [
 ];
 
 export function MobileInspectorDrawer({
+  glideSnapMode, setGlideSnapMode,
   isOpen,
   gridSize,
   onClose,
@@ -54,7 +57,6 @@ export function MobileInspectorDrawer({
   onNudgeSelected,
 }: MobileInspectorDrawerProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [glideSnapMode, setGlideSnapMode] = useState<'snap' | 'free'>('snap');
   const handleJoystickMove = (dx: number, dy: number) => {
     onNudgeSelected?.(dx, dy);
   };
@@ -172,7 +174,7 @@ export function MobileInspectorDrawer({
                   <div className="space-y-0.5">
                     <span className="text-xs font-bold text-slate-800 block">Position Glide</span>
                     <span className="text-[11px] text-slate-500 block">
-                      {glideSnapMode === 'snap' ? `Moves in ${pxToCm(gridSize)} cm steps` : 'Continuous free movement'}
+                      {selectedItem?.wallId ? 'Along wall: left/up toward start; right/down toward end' : glideSnapMode === 'snap' ? `Moves in ${pxToCm(gridSize)} cm steps` : 'Continuous free movement'}
                     </span>
                   </div>
                   <UniversalJoystick key={[glideSnapMode, gridSize, ...selectedItemIds, selectedWallId, selectedFloorId].join(':')} snapRepeat={glideSnapMode === 'snap'}

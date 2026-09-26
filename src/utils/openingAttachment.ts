@@ -5,6 +5,14 @@ import { cmToPx, pxToCm } from './coordinates';
 
 export const isOpening = (item: PlacedItem) => ['door', 'window'].includes(ITEM_CATALOG.find(type => type.id === item.typeId)?.shape || '');
 
+/** Joystick directions follow the host wall: left/up toward its start, right/down toward its end. */
+export function nudgeOpeningAlongWall(item: PlacedItem, walls: Wall[], dx: number, dy: number): PlacedItem {
+  const wall = walls.find(wall => wall.id === item.wallId);
+  if (!wall || !isOpening(item)) return { ...item, x: item.x + dx, y: item.y + dy };
+  const distance = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
+  return placeOpening(item, wall, (item.wallOffset ?? 0) + pxToCm(distance)) ?? item;
+}
+
 export function openingValidationError(document: PlanDocument): string | null {
   const spans = new Map<string, { start: number; end: number }[]>();
   for (const item of document.items) {

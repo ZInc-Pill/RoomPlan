@@ -20,6 +20,8 @@ import { AppMode } from '../types';
 import { UniversalJoystick } from './UniversalJoystick';
 
 interface MobileBottomDockProps {
+  glideSnapMode: 'snap' | 'free';
+  setGlideSnapMode: (mode: 'snap' | 'free') => void;
   gridSize: number;
   mode: AppMode;
   setMode: (mode: AppMode) => void;
@@ -38,6 +40,7 @@ interface MobileBottomDockProps {
 }
 
 export function MobileBottomDock({
+  glideSnapMode, setGlideSnapMode,
   gridSize, mode,
   setMode,
   onOpenCatalog,
@@ -54,7 +57,6 @@ export function MobileBottomDock({
   onNudgeSelected,
 }: MobileBottomDockProps) {
   const [isJoystickActive, setIsJoystickActive] = useState(false);
-  const [glideSnapMode, setGlideSnapMode] = useState<'snap' | 'free'>('snap');
   const handleJoystickMove = (dx: number, dy: number) => {
     onNudgeSelected?.(dx, dy);
   };

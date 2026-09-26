@@ -34,6 +34,8 @@ import { isInteractiveElement } from '../utils/input';
 type RulerMeasurement = { id: string; start: Point; end: Point; createdAt: number };
 
 interface Canvas2DProps {
+  dragSnapMode: 'snap' | 'free';
+  setDragSnapMode: (mode: 'snap' | 'free') => void;
   gridOption: 1 | 2 | 3;
   setGridOption: (option: 1 | 2 | 3) => void;
   walls: Wall[];
@@ -57,6 +59,7 @@ interface Canvas2DProps {
 }
 
 export function Canvas2D({
+  dragSnapMode, setDragSnapMode,
   walls, floors, items, comments, mode, selectedItemIds, selectedWallId, selectedFloorId, selectedCommentId, 
   onUpdateWalls, onUpdateFloors, onUpdateItems, onUpdateComments, onSelect, setMode, onDuplicateFloor, onDeleteFloor,
   gridOption, setGridOption, isDrawerOpen = false
@@ -142,6 +145,7 @@ export function Canvas2D({
   });
 
   // Furniture Interaction Hook
+  const freeDrag = dragSnapMode === 'free';
   const {
     isDraggingItem,
     handleItemPointerDown,
@@ -151,6 +155,7 @@ export function Canvas2D({
     snapGuides,
     openingPreview,
   } = useFurnitureInteraction({
+    freeDrag,
     mode,
     items,
     walls,
@@ -265,8 +270,6 @@ export function Canvas2D({
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (isDrawerOpen || (e.target instanceof Element && e.target.closest('button, input, textarea, select, [role="dialog"], [data-editor-control]'))) return;
-    const { handled } = handleViewportPointerDown(e);
-    if (handled) return;
 
     // If not left click
     if (e.button !== 0) return;
@@ -422,11 +425,20 @@ export function Canvas2D({
           ? 'cursor-grabbing'
           : 'cursor-default'
       }`}
+      onPointerDownCapture={e => {
+        if (isDrawerOpen) { e.stopPropagation(); return; }
+        if (e.target instanceof Element && e.target.closest('button, input, textarea, select, [role="dialog"], [data-editor-control]')) return;
+        const { handled } = handleViewportPointerDown(e);
+        if (handled) {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          e.stopPropagation();
+        }
+      }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={(e) => { if (!e.buttons) handlePointerUp(e); }}
-      onPointerCancel={handlePointerUp}
+      onPointerCancel={e => { handleViewportPointerUp(e); cancelActiveInteractions(); }}
       onDoubleClick={handleDoubleClick}
     >
       <div 
@@ -1453,6 +1465,7 @@ export function Canvas2D({
       </div>
 
       <div className="absolute top-16 md:top-6 right-3 md:right-6 flex items-center gap-1 bg-white/90 backdrop-blur p-1 rounded-xl border border-slate-200 shadow-sm z-10">
+        <button aria-label="Free object dragging" aria-pressed={freeDrag} onClick={() => setDragSnapMode(freeDrag ? 'snap' : 'free')} className="min-h-11 min-w-11 px-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50" title="Furniture drag snapping; windows stay aligned to walls">{freeDrag ? 'Free' : 'Snap'}</button>
         <button 
           onClick={() => setGridOption(gridOption === 3 ? 1 : (gridOption + 1) as 1|2|3)}
           title={`Toggle Grid Size (Current: ${gridOption === 1 ? '0.5m' : gridOption === 2 ? '0.25m' : '0.125m'})`}

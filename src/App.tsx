@@ -22,7 +22,7 @@ import { isInteractiveElement } from './utils/input';
 import { useDocumentHistory } from './hooks/useDocumentHistory';
 import { useProjectAutosave } from './hooks/useProjectAutosave';
 import { parseProject, serializeProject, PROJECT_LIMIT, BACKUP_KEY } from './utils/projectFile';
-import { attachNearestOpening, isOpening } from './utils/openingAttachment';
+import { attachNearestOpening, isOpening, nudgeOpeningAlongWall } from './utils/openingAttachment';
 import { updateConnectedWall } from './utils/wallConnections';
 import { getGridSize } from './utils/coordinates';
 import { emptyDocument, type PlanDocument } from './utils/documentHistory';
@@ -35,6 +35,7 @@ export default function App() {
   const historyIndex = documentState.past.length;
   const history = { length: historyIndex + 1 + documentState.future.length };
   const [gridOption, setGridOption] = useState<1 | 2 | 3>(1);
+  const [dragSnapMode, setDragSnapMode] = useState<'snap' | 'free'>('snap');
   const [mode, setMode] = useState<AppMode>('SELECT');
   const [view3D, setView3D] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
@@ -323,7 +324,7 @@ export default function App() {
   // Universal Nudge Handler: moves selected item(s), wall, or floor smoothly
   const handleNudgeSelected = (dx: number, dy: number) => {
     if (selectedItemIds.length > 0) {
-      handleSetItems(prev => prev.map(i => selectedItemIds.includes(i.id) ? { ...i, x: i.x + dx, y: i.y + dy } : i));
+      handleSetItems(prev => prev.map(i => selectedItemIds.includes(i.id) ? (selectedItemIds.length === 1 ? nudgeOpeningAlongWall(i, walls, dx, dy) : { ...i, x: i.x + dx, y: i.y + dy }) : i));
     } else if (selectedWallId) {
       handleNudgeWall(selectedWallId, dx, dy);
     } else if (selectedFloorId) {
@@ -701,7 +702,7 @@ export default function App() {
             </Suspense>
             </PreviewBoundary>
           ) : (
-            <Canvas2D gridOption={gridOption} setGridOption={setGridOption}
+            <Canvas2D dragSnapMode={dragSnapMode} setDragSnapMode={setDragSnapMode} gridOption={gridOption} setGridOption={setGridOption}
               walls={walls} 
               floors={floors}
               items={items}
@@ -830,7 +831,7 @@ export default function App() {
 
       {/* Mobile Bottom Dock or 3D Control Deck */}
       {!view3D && (
-        <MobileBottomDock gridSize={getGridSize(gridOption)}
+        <MobileBottomDock glideSnapMode={dragSnapMode} setGlideSnapMode={setDragSnapMode} gridSize={getGridSize(gridOption)}
           mode={mode}
           setMode={setMode}
           onOpenCatalog={() => setIsCatalogOpen(true)}
@@ -882,7 +883,7 @@ export default function App() {
         onDeleteComment={handleDeleteComment}
       />
 
-      <MobileInspectorDrawer gridSize={getGridSize(gridOption)}
+      <MobileInspectorDrawer glideSnapMode={dragSnapMode} setGlideSnapMode={setDragSnapMode} gridSize={getGridSize(gridOption)}
         isOpen={isInspectorOpen}
         onClose={() => setIsInspectorOpen(false)}
         selectedItemIds={selectedItemIds}

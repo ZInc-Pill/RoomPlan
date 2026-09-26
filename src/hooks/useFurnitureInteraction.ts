@@ -28,6 +28,7 @@ export interface DraggingItemState {
 }
 
 export interface UseFurnitureInteractionOptions {
+  freeDrag?: boolean;
   mode: string;
   items: PlacedItem[];
   walls: Wall[];
@@ -52,6 +53,7 @@ export interface UseFurnitureInteractionResult {
 }
 
 export function useFurnitureInteraction({
+  freeDrag = false,
   mode,
   items,
   walls,
@@ -88,7 +90,7 @@ export function useFurnitureInteraction({
     const pt = getPoint(e);
     
     // Check if alt is held (free movement)
-    const isFreeMove = getModifierState(e).alt;
+    const isFreeMove = freeDrag || getModifierState(e).alt;
     
     setDraggingItem({
       id: item.id,
@@ -186,7 +188,7 @@ export function useFurnitureInteraction({
     const otherBounds = otherItems.map(getItemBounds);
     const otherCenters = otherItems.map(i => ({ x: i.x, y: i.y }));
 
-    const isFreeMove = getModifierState(e).alt;
+    const isFreeMove = freeDrag || getModifierState(e).alt;
 
     const snapResult = calculateItemSnap(
       rawGroupPt,
@@ -220,7 +222,7 @@ export function useFurnitureInteraction({
     }
 
     return { handled: true };
-  }, [mode, draggingItem, currentGridSize, zoom, onUpdateItems]);
+  }, [mode, draggingItem, currentGridSize, zoom, onUpdateItems, freeDrag]);
 
   const handlePointerUp = useCallback((_e?: React.PointerEvent): { handled: boolean } => {
     if (draggingItem) {

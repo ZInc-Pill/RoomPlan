@@ -68,6 +68,24 @@ export function useCanvasViewport({
     midpoint: Point;
   } | null>(null);
 
+  useEffect(() => {
+    const reset = () => {
+      activePointers.current.clear();
+      pinchStart.current = null;
+      panStartRef.current = null;
+      setIsPanning(false);
+      setIsPinching(false);
+      setSpacePressed(false);
+      onPinchStart?.();
+    };
+    window.addEventListener('blur', reset);
+    document.addEventListener('visibilitychange', reset);
+    return () => {
+      window.removeEventListener('blur', reset);
+      document.removeEventListener('visibilitychange', reset);
+    };
+  }, [onPinchStart]);
+
   // Coordinate conversion helpers using centralized coordinates.ts
   const screenToWorldCoord = useCallback((clientX: number, clientY: number): Point => {
     if (!containerRef.current) return { x: 0, y: 0 };
