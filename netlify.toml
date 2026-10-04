@@ -5,3 +5,8 @@
 [build.environment]
   NODE_VERSION = "22"
 
+# Public browser credentials; database permissions are enforced by Supabase RLS.
+  VITE_SUPABASE_URL = "https://knxybrhlfbpqapnxgcmq.supabase.co"
+  VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_3XioZICiXAigle3NOwB0Bg_6d_XqgY9"
+  VITE_GOOGLE_AUTH_ENABLED = "false"
+  VITE_INVITE_EMAIL_ENABLED = "false"

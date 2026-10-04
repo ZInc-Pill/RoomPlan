@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useReducer } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { documentHistory, initialHistory, type PlanDocument } from '../utils/documentHistory';
 
 import { readSavedProject } from './useProjectAutosave';
 import { MobileDragHistoryGate } from '../utils/mobileGestureOwnership';
 
-export function useDocumentHistory() {
-  const [state, dispatch] = useReducer(documentHistory, undefined, () => ({ ...initialHistory(), present: readSavedProject() || initialHistory().present }));
+export function useDocumentHistory(initial?: PlanDocument, external?: PlanDocument, readOnly = false) {
+  const [state, dispatch] = useReducer(documentHistory, undefined, () => ({ ...initialHistory(), present: initial ?? readSavedProject() ?? initialHistory().present }));
   useEffect(() => {
     const pointers = new Set<number>();
     const mobileDrags = new MobileDragHistoryGate();
@@ -38,6 +38,8 @@ export function useDocumentHistory() {
       window.removeEventListener('blur', cancel);
     };
   }, []);
-  const update = useCallback((change: (document: PlanDocument) => PlanDocument, exactPlacement = false) => dispatch({ type: 'update', update: change, exactPlacement }), []);
-  return { state, update, undo: () => dispatch({ type: 'undo' }), redo: () => dispatch({ type: 'redo' }) };
+  const appliedExternal = useRef(external);
+  useEffect(() => { if (external && external !== appliedExternal.current && !state.start) { appliedExternal.current = external; dispatch({ type: 'remote', document: external }); } }, [external, Boolean(state.start)]);
+  const update = useCallback((change: (document: PlanDocument) => PlanDocument, exactPlacement = false) => { if (!readOnly) dispatch({ type: 'update', update: change, exactPlacement }); }, [readOnly]);
+  return { state, update, undo: () => { if (!readOnly) dispatch({ type: 'undo' }); }, redo: () => { if (!readOnly) dispatch({ type: 'redo' }); } };
 }

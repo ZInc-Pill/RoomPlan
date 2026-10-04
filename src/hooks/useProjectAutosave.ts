@@ -7,7 +7,7 @@ export function readSavedProject(): PlanDocument | undefined {
   try { return browserProjectStore().load()?.document; } catch { return undefined; }
 }
 
-export function useProjectAutosave(document: PlanDocument, editing: boolean) {
+export function useProjectAutosave(document: PlanDocument, editing: boolean, enabled = true) {
   const [status, setStatus] = useState('Saved on this device');
   const latest = useRef(document);
   const blocked = useRef(false);
@@ -15,7 +15,7 @@ export function useProjectAutosave(document: PlanDocument, editing: boolean) {
   const persisted = useRef(JSON.stringify(document));
   const save = useRef(() => {});
   save.current = () => {
-    if (blocked.current || persisted.current === JSON.stringify(latest.current)) return;
+    if (!enabled || blocked.current || persisted.current === JSON.stringify(latest.current)) return;
     try {
       revision.current = browserProjectStore().save(latest.current, revision.current);
       persisted.current = JSON.stringify(latest.current);
@@ -26,6 +26,7 @@ export function useProjectAutosave(document: PlanDocument, editing: boolean) {
     }
   };
   useEffect(() => {
+    if (!enabled) return;
     try {
       revision.current = browserProjectStore().revision();
       const saved = browserProjectStore().load();
@@ -41,15 +42,15 @@ export function useProjectAutosave(document: PlanDocument, editing: boolean) {
     documentGlobal().addEventListener('visibilitychange', hidden);
     window.addEventListener('storage', changed);
     return () => { window.removeEventListener('pagehide', flush); documentGlobal().removeEventListener('visibilitychange', hidden); window.removeEventListener('storage', changed); };
-  }, []);
+  }, [enabled]);
   useEffect(() => {
-    if (editing) return;
+    if (!enabled || editing) return;
     latest.current = document;
     if (persisted.current === JSON.stringify(document) || blocked.current) return;
     setStatus('Saving…');
     const timer = setTimeout(() => save.current(), 500);
     return () => clearTimeout(timer);
-  }, [document, editing]);
+  }, [document, editing, enabled]);
   return status;
 }
 // Keep the browser document distinct from the editor document.

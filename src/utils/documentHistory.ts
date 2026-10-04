@@ -1,9 +1,11 @@
+import { applyChanges, changesBetween } from '../cloud/patches';
 import { reconcileOpenings, openingValidationError } from './openingAttachment';
 import type { Wall, Floor, PlacedItem, CommentType } from '../types';
 
 export type PlanDocument = { walls: Wall[]; floors: Floor[]; items: PlacedItem[]; comments: CommentType[] };
 export type HistoryState = { error?: string; past: PlanDocument[]; present: PlanDocument; future: PlanDocument[]; start: PlanDocument | null };
 export type HistoryAction =
+  | { type: 'remote'; document: PlanDocument }
   | { type: 'update'; update: (document: PlanDocument) => PlanDocument; exactPlacement?: boolean }
   | { type: 'begin' | 'commit' | 'cancel' | 'undo' | 'redo' };
 export const emptyDocument = (): PlanDocument => ({ walls: [], floors: [], items: [], comments: [] });
@@ -13,6 +15,16 @@ const append = (past: PlanDocument[], document: PlanDocument) => [...past, docum
 
 export function documentHistory(state: HistoryState, action: HistoryAction): HistoryState {
   switch (action.type) {
+    case 'remote': {
+      if (state.start || equal(state.present, action.document)) return state;
+      const changes = changesBetween(state.present, action.document);
+      try {
+        return { ...state, present: action.document, past: state.past.map(doc => applyChanges(doc, changes)), future: state.future.map(doc => applyChanges(doc, changes)), error: undefined };
+      } catch {
+        // A collaborator changed an entity in local history. Never let Undo overwrite their work.
+        return { ...initialHistory(), present: action.document, error: 'Shared changes updated this object; earlier undo history was cleared.' };
+      }
+    }
     case 'begin': return state.start ? state : { ...state, start: state.present };
     case 'update': {
       const requested = action.update(state.present);

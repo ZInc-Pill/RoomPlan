@@ -1,6 +1,6 @@
 import { PreviewBoundary } from './components/PreviewBoundary';
 import { browserProjectStore } from './utils/localProjectStore';
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
 
 import { MousePointer2, PenTool, Layers, MessageSquare, Ruler, ListTree, Keyboard } from 'lucide-react';
 import { Toolbar } from './components/Toolbar';
@@ -31,10 +31,13 @@ import { updateConnectedWall } from './utils/wallConnections';
 import { getGridSize } from './utils/coordinates';
 import { emptyDocument, type PlanDocument } from './utils/documentHistory';
 
-export default function App() {
-  const { state: documentState, update: updateDocument, undo: handleUndo, redo: handleRedo } = useDocumentHistory();
+export type EditorCloudProps = { initial?: PlanDocument; external?: PlanDocument; readOnly?: boolean; embedded?: boolean; cloudStatus?: string; onDocument?: (document:PlanDocument, editing:boolean)=>void };
+export default function App({ initial, external, readOnly = false, embedded = false, cloudStatus, onDocument }: EditorCloudProps = {}) {
+  const { state: documentState, update: updateDocument, undo: handleUndo, redo: handleRedo } = useDocumentHistory(initial, external, readOnly);
   const { walls, floors, items, comments } = documentState.present;
-  const saveStatus = useProjectAutosave(documentState.present, Boolean(documentState.start));
+  const localSaveStatus = useProjectAutosave(documentState.present, Boolean(documentState.start), !initial);
+  const saveStatus = cloudStatus ?? localSaveStatus;
+  useLayoutEffect(() => { onDocument?.(documentState.present, Boolean(documentState.start)); }, [documentState.present, documentState.start, onDocument]);
   const [projectError, setProjectError] = useState<string | null>(null);
   const historyIndex = documentState.past.length;
   const history = { length: historyIndex + 1 + documentState.future.length };
@@ -585,7 +588,7 @@ export default function App() {
 
   return (
     <MobileWorkspaceContext.Provider value={{ rail: railHost, glide: glideHost, glideOpen, tools: toolHost }}>
-    <div data-mobile-workspace={isMobile ? "true" : undefined} style={{ height: appViewportHeight }} className="flex flex-col w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden relative">
+    <div data-mobile-workspace={isMobile ? "true" : undefined} style={{ height: embedded ? '100%' : appViewportHeight }} className="flex flex-col w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden relative">
       {/* Mobile Top Header */}
       {isMobile && <MobileHeader
         view3D={view3D}
@@ -627,7 +630,7 @@ export default function App() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"></path></svg>
           </button>
           <input type="file" ref={fileInputRef} onChange={handleOpen} accept=".json" className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-500 hover:text-slate-900" title="Open JSON">
+          <button disabled={readOnly} onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-500 hover:text-slate-900" title="Open JSON">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path></svg>
           </button>
           <button onClick={handleSave} className="p-2 text-slate-500 hover:text-slate-900" title="Save JSON (Ctrl+S)">
@@ -639,12 +642,12 @@ export default function App() {
           <button onClick={handleScreenshot} className="p-2 text-slate-500 hover:text-slate-900" title="Screenshot">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
           </button>
-          <button onClick={handleClear} className="ml-2 text-sm font-medium text-slate-500 hover:text-slate-900">Clear Plan</button>
+          <button disabled={readOnly} onClick={handleClear} className="ml-2 text-sm font-medium text-slate-500 hover:text-slate-900">Clear Plan</button>
         </div>
       </header>
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {!isMobile && <Toolbar
+        {!isMobile && !readOnly && <Toolbar
           mode={mode}
           setMode={setMode}
           view3D={view3D}
@@ -670,7 +673,7 @@ export default function App() {
           {isMobile && <div className="mobile-status" role="status">{documentState.error || projectError || saveStatus}</div>}
           {isMobile && <div className="mobile-view-controls" aria-label="View controls" data-editor-control><div ref={setRailHost} /></div>}
           <div className={isMobile ? 'mobile-scene-row' : 'contents'}>
-          {isMobile && (hasMobileSelection || (view3D && cameraPreset3D === 'walk')) && !isInspectorOpen && <aside className="mobile-rail" aria-label="Contextual controls" data-editor-control>
+          {isMobile && !readOnly && (hasMobileSelection || (view3D && cameraPreset3D === 'walk')) && !isInspectorOpen && <aside className="mobile-rail" aria-label="Contextual controls" data-editor-control>
             <div className="mobile-rail-scroll">
               <RailButton label={contextCollapsed ? 'Controls' : 'Collapse'} icon={Sliders} onClick={() => { setContextCollapsed(v => !v); setGlideOpen(false); setRotationOpen(false); }} />
               {!contextCollapsed && <>
@@ -700,7 +703,7 @@ export default function App() {
           <div className="desktop-workspace-control hidden md:block absolute top-28 md:top-16 left-2 z-20 max-w-[calc(100%-1rem)] rounded-lg bg-white/95 border border-slate-200 px-2 py-1 text-[11px] shadow-sm" data-editor-control>
             <span role="status">{saveStatus}</span>
             {documentState.error && <p role="alert" className="max-w-xs text-rose-700">{documentState.error}</p>}
-            <button className="ml-2 underline min-h-8" onClick={() => {
+            {!initial && !readOnly && <button className="ml-2 underline min-h-8" onClick={() => {
               try {
                 const backup = browserProjectStore().loadBackup();
                 if (!backup) throw new Error('No previous saved version is available yet.');
@@ -709,7 +712,7 @@ export default function App() {
                 setSelectedItemIds([]); setSelectedWallId(null); setSelectedFloorId(null); setSelectedCommentId(null);
                 setProjectError(null);
               } catch (error) { setProjectError(error instanceof Error ? error.message : 'Could not restore backup.'); }
-            }}>Restore previous save</button>
+            }}>Restore previous save</button>}
             {selectedItemIds.length === 1 && items.filter(item => item.id === selectedItemIds[0] && isOpening(item)).map(item => <div key={item.id} className="border-t mt-1 pt-1">
               <span>{item.wallId ? (isMobile ? 'Attached · drag freely, release near a wall to snap' : 'Attached to wall · movement follows wall') : 'Door/window not attached'}</span>
               <button className="ml-2 underline min-h-9" onClick={() => {
@@ -729,7 +732,7 @@ export default function App() {
           {view3D ? (
             <PreviewBoundary onReturn={() => setView3D(false)}>
             <Suspense fallback={<div role="status" className="p-6 text-slate-600">Loading 3D preview…</div>}>
-            <Canvas3D interactionBlocked={Boolean(activePanel) || isShortcutsOpen || isScreenshotModalOpen}
+            <Canvas3D readOnly={readOnly} interactionBlocked={Boolean(activePanel) || isShortcutsOpen || isScreenshotModalOpen}
               walls={walls}
               floors={floors}
               items={items}
@@ -768,7 +771,7 @@ export default function App() {
               floors={floors}
               items={items}
               comments={comments}
-              mode={mode}
+              mode={readOnly ? 'PAN' : mode}
               selectedItemIds={selectedItemIds}
               selectedWallId={selectedWallId}
               selectedFloorId={selectedFloorId}
@@ -791,7 +794,7 @@ export default function App() {
             />
           )}
 
-          {!view3D && (
+          {!view3D && !readOnly && (
             <div className="desktop-workspace-control hidden md:flex absolute bottom-8 left-1/2 -translate-x-1/2 items-center bg-white shadow-2xl rounded-full border border-slate-200 p-2 z-20 gap-2 scale-125 origin-bottom">
               <div className="relative group">
                 <button
@@ -864,7 +867,7 @@ export default function App() {
           </div>
           </div>
           {isMobile && !isInspectorOpen && <div ref={setPanelHost} className={`mobile-panel-host ${activePanel ? 'is-open' : ''} ${isCatalogOpen ? 'catalog-open' : ''}`} data-editor-control />}
-          {isMobile && <nav className="mobile-main-tools" aria-label="Main tools" data-editor-control>
+          {isMobile && !readOnly && <nav className="mobile-main-tools" aria-label="Main tools" data-editor-control>
             {!view3D && <>
               <RailButton label="Select" icon={MousePointer2} active={mode === 'SELECT' && !activePanel} onClick={() => { setActivePanel(null); setMode('SELECT'); }} />
               <RailButton label="Draw" icon={PenTool} active={activePanel ? activePanel === 'draw' : mode === 'DRAW_WALL' || mode === 'DRAW_FLOOR'} onClick={() => setActivePanel(p => p === 'draw' ? null : 'draw')} />
@@ -874,7 +877,7 @@ export default function App() {
             <RailButton label="Layers" icon={ListTree} active={isLayersOpen} onClick={() => setIsLayersOpen(!isLayersOpen)} />
             {!view3D && <RailButton label="Tools" icon={Sliders} active={activePanel ? activePanel === 'tools' : ['PAN','RULER','COMMENT'].includes(mode)} onClick={() => setActivePanel(p => p === 'tools' ? null : 'tools')} />}
           </nav>}
-          {!isMobile && <PropertiesPanel
+          {!isMobile && !readOnly && <PropertiesPanel
             selectedItemIds={selectedItemIds}
             selectedWallId={selectedWallId}
             selectedFloorId={selectedFloorId}
@@ -947,7 +950,7 @@ export default function App() {
       />
 
       <MobileActionsMenu
-        onRestore={() => { try { const backup = browserProjectStore().loadBackup(); if (!backup) throw new Error('No previous save available.'); updateDocument(() => backup); setSelectedItemIds([]); setSelectedWallId(null); setSelectedFloorId(null); setActivePanel(null); } catch (error) { setProjectError(String(error)); } }}
+        onRestore={() => { if(initial || readOnly){setProjectError('Use the cloud recovery controls to recover a shared project.');return;} try { const backup = browserProjectStore().loadBackup(); if (!backup) throw new Error('No previous save available.'); updateDocument(() => backup); setSelectedItemIds([]); setSelectedWallId(null); setSelectedFloorId(null); setActivePanel(null); } catch (error) { setProjectError(String(error)); } }}
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
         onSave={handleSave}

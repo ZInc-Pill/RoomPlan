@@ -1,0 +1,255 @@
+.cloud-page {
+  min-height: 100dvh;
+  background: #f6f7f9;
+  color: #18252c;
+  padding: clamp(20px, 5vw, 64px);
+  font-family: Inter, system-ui, sans-serif;
+}
+.cloud-brand {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+.cloud-brand span {
+  color: #68787e;
+  font-weight: 400;
+}
+.cloud-page h1 {
+  font-size: clamp(30px, 5vw, 48px);
+  letter-spacing: -1.5px;
+  margin: 28px 0 18px;
+}
+.cloud-page p,
+.cloud-dialog p {
+  color: #637177;
+  line-height: 1.6;
+}
+.cloud-page button,
+.cloud-editor button,
+.cloud-dialog button,
+.cloud-page input,
+.cloud-dialog input,
+.cloud-page select,
+.cloud-dialog select {
+  min-height: 44px;
+  border: 1px solid #d7dfe1;
+  border-radius: 10px;
+  background: white;
+  padding: 10px 14px;
+  font: inherit;
+  color: #203039;
+}
+.cloud-page button,
+.cloud-editor button,
+.cloud-dialog button {
+  cursor: pointer;
+}
+.cloud-page button:disabled,
+.cloud-dialog button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.cloud-page .primary,
+.cloud-dialog .primary {
+  background: #164e49;
+  color: white;
+  border-color: #164e49;
+}
+.cloud-auth {
+  max-width: 480px;
+  margin: 12vh auto;
+}
+.cloud-auth form,
+.cloud-dialog form {
+  display: grid;
+  gap: 12px;
+}
+.cloud-auth label,
+.cloud-dialog label {
+  display: grid;
+  gap: 8px;
+}
+.cloud-auth > button {
+  margin-top: 16px;
+}
+.cloud-eyebrow {
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+.cloud-heading,
+.cloud-create,
+.cloud-filters,
+.cloud-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cloud-heading {
+  justify-content: space-between;
+}
+.cloud-create {
+  margin-bottom: 12px;
+}
+.cloud-filters {
+  margin: 30px 0 20px;
+}
+.cloud-filters input {
+  flex: 1;
+  min-width: 180px;
+}
+.cloud-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+}
+.cloud-card {
+  padding: 24px;
+  border: 1px solid #dce3e3;
+  border-radius: 18px;
+  background: white;
+}
+.cloud-card .cloud-project-title {
+  border: 0;
+  padding: 0;
+  text-align: left;
+  font-size: 21px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.cloud-error,
+.cloud-invite {
+  padding: 14px;
+  background: #fff4dc;
+  color: #5a4013;
+  font-size: 13px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.cloud-error button {
+  font-size: 13px;
+}
+.cloud-editor {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cloud-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #dbe3e5;
+  background: #fff;
+  flex-wrap: wrap;
+  font: 13px system-ui;
+}
+.cloud-bar strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 30vw;
+}
+.cloud-bar span {
+  flex: 1;
+  color: #57676c;
+}
+.cloud-bar button {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+.cloud-canvas {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+.cloud-dialog {
+  border: 1px solid #dde4e5;
+  border-radius: 20px;
+  padding: 24px;
+  width: min(580px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  color: #203039;
+}
+.cloud-dialog::backdrop {
+  background: #14252a88;
+}
+.cloud-dialog h2 {
+  font-size: 21px;
+  font-weight: 600;
+}
+.cloud-dialog h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 22px 0 10px;
+}
+.cloud-member {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.cloud-member span {
+  flex: 1;
+  overflow-wrap: anywhere;
+  min-width: 140px;
+}
+.cloud-dialog p {
+  font-size: 13px;
+  margin: 12px 0;
+}
+.cloud-dialog input {
+  width: 100%;
+  min-width: 0;
+}
+.cloud-page :focus-visible,
+.cloud-dialog :focus-visible,
+.cloud-bar :focus-visible {
+  outline: 3px solid #38a39a;
+  outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  .cloud-page {
+    padding: 20px;
+  }
+  .cloud-auth {
+    margin: 8vh auto;
+  }
+  .cloud-create > * {
+    width: 100%;
+  }
+  .cloud-filters > * {
+    width: 100%;
+  }
+  .cloud-bar {
+    gap: 6px;
+  }
+  .cloud-bar span {
+    order: 5;
+    width: 100%;
+    flex: auto;
+  }
+  .cloud-bar strong {
+    flex: 1;
+    max-width: 38vw;
+  }
+  .cloud-dialog {
+    padding: 18px;
+  }
+  .cloud-dialog .cloud-actions button {
+    flex: 1;
+  }
+}
+.cloud-page {
+  height: 100dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}

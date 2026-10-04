@@ -55,6 +55,7 @@ import { BlenderMoveGizmo } from './BlenderMoveGizmo';
 const MinimalStyleContext = createContext(true);
 
 interface Canvas3DProps {
+  readOnly?: boolean;
   interactionBlocked?: boolean;
   walls: Wall[];
   floors: Floor[];
@@ -1276,7 +1277,8 @@ function MobileResizeAnchor({ target, controlsRef }: { target: [number, number, 
   return null;
 }
 
-export function Canvas3D({ 
+export function Canvas3D({
+  readOnly = false,
   walls, 
   floors, 
   items, 
@@ -1370,7 +1372,7 @@ export function Canvas3D({
   const selectedWall = selectedWallId ? walls.find(w => w.id === selectedWallId) || null : null;
   const selectedFloor = selectedFloorId ? floors.find(f => f.id === selectedFloorId) || null : null;
   const selectedItemType = selectedItem ? ITEM_CATALOG.find(c => c.id === selectedItem.typeId) : null;
-  const canSelect = !interactionBlocked && cameraPreset !== 'walk' && (!effectiveIsMobile || editing);
+  const canSelect = !readOnly && !interactionBlocked && cameraPreset !== 'walk' && (!effectiveIsMobile || editing);
   const selectInPreview: typeof onSelect = (...selection) => { if (canSelect) onSelect(...selection); };
   const cameraAction = (action: CameraAction) => {
     const controls = controlsRef.current;
@@ -1468,7 +1470,7 @@ export function Canvas3D({
   // Keyboard navigation and shortcuts for desktop 3D
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (cameraPreset === 'walk' || interactionBlocked || (effectiveIsMobile && !editing) || isInteractiveElement(e.target) || e.ctrlKey || e.metaKey) return;
+      if (readOnly || cameraPreset === 'walk' || interactionBlocked || (effectiveIsMobile && !editing) || isInteractiveElement(e.target) || e.ctrlKey || e.metaKey) return;
 
       const step = e.shiftKey 
         ? (snapMode ? 50 : 10) 
@@ -1524,7 +1526,7 @@ export function Canvas3D({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cameraPreset, interactionBlocked, effectiveIsMobile, editing, selectedItem, selectedWall, selectedFloor, snapMode, onUpdateItem, onUpdateWall, onUpdateFloor, onRotate, onElevate, onDeleteItem, onDeleteWall, onDeleteFloor, onSelect]);
+  }, [readOnly, cameraPreset, interactionBlocked, effectiveIsMobile, editing, selectedItem, selectedWall, selectedFloor, snapMode, onUpdateItem, onUpdateWall, onUpdateFloor, onRotate, onElevate, onDeleteItem, onDeleteWall, onDeleteFloor, onSelect]);
 
 
   return (
@@ -1676,7 +1678,7 @@ export function Canvas3D({
       {!effectiveIsMobile && <PreviewNavigation blocked={interactionBlocked} mode={cameraPreset} onMode={mode => { setFocusTarget(null); setCameraPreset(mode); }} mobile={effectiveIsMobile} gesture={gesture} onGesture={setGesture} onAction={cameraAction} onReset={() => { setFocusTarget(null); walkMovement.current = [0, 0]; setResetVersion(value => value + 1); }} editing={editing} onEdit={() => { setEditing(value => !value); onSelect([], null, null, null); }} minimal={minimalStyle} onMinimal={() => setMinimalStyle(value => !value)} speed={walkSpeed} onSpeed={setWalkSpeed} />}
     </div>
     {effectiveIsMobile && <>
-      <MobileControlPortal tools>{cameraPreset !== 'walk' && <RailButton label="Select" active={editing} onClick={() => { setEditing(v => !v); onSelect([],null,null,null); }} />}</MobileControlPortal>
+      <MobileControlPortal tools>{!readOnly && cameraPreset !== 'walk' && <RailButton label="Select" active={editing} onClick={() => { setEditing(v => !v); onSelect([],null,null,null); }} />}</MobileControlPortal>
       <MobileControlPortal>
         <section className="rail-section" aria-label="3D view controls">
           {(['perspective','isometric','walk'] as const).map(value => <RailButton key={value} label={value === 'perspective' ? 'General' : value === 'walk' ? 'Walk' : 'Isometric'} active={cameraPreset === value} onClick={() => { setFocusTarget(null); setCameraPreset(value); }} />)}
