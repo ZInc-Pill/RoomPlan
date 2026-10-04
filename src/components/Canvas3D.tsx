@@ -1,4 +1,6 @@
-import { WalkJoystick } from './WalkJoystick';
+import { MobileControlPortal, RailButton } from './MobileWorkspace';
+import { MobileGlide } from './MobileGlide';
+import { cameraRelativeGlide } from '../utils/mobileCameraMovement';
 import { PreviewNavigation, type CameraAction } from './PreviewNavigation';
 import { WalkCamera } from './WalkCamera';
 import { getProceduralTexture } from '../utils/proceduralTextures';
@@ -77,6 +79,7 @@ interface Canvas3DProps {
   focusTarget?: [number, number, number] | null;
   onFocusTargetChange?: (target: [number, number, number] | null) => void;
   isMobile?: boolean;
+  onMobileMove?: (x: number, y: number) => void;
 }
 
 const WALL_COLOR_PRESETS = [
@@ -1252,6 +1255,27 @@ function CameraController({
   return null;
 }
 
+function MobileResizeAnchor({ target, controlsRef }: { target: [number, number, number] | null; controlsRef: React.RefObject<any> }) {
+  const { camera, size } = useThree();
+  const selected = useRef(target); selected.current = target;
+  const previous = useRef(size);
+  useEffect(() => {
+    if (!size.width || !size.height) return;
+    if (size.width === previous.current.width && size.height === previous.current.height) return;
+    previous.current = size;
+    const controls = controlsRef.current;
+    if (!selected.current || !controls) return;
+    const point = new THREE.Vector3(...selected.current);
+    const projected = point.clone().project(camera);
+    if (Math.abs(projected.x) <= 0.75 && Math.abs(projected.y) <= 0.75) return;
+    // Reframe by translation only: retain orientation and zoom when reserved panels resize.
+    const desired = projected.clone(); desired.x = THREE.MathUtils.clamp(desired.x, -0.65, 0.65); desired.y = THREE.MathUtils.clamp(desired.y, -0.65, 0.65);
+    const shift = point.sub(desired.unproject(camera));
+    camera.position.add(shift); controls.target.add(shift); controls.update();
+  }, [size.width, size.height, camera, controlsRef]);
+  return null;
+}
+
 export function Canvas3D({ 
   walls, 
   floors, 
@@ -1275,7 +1299,7 @@ export function Canvas3D({
   onCameraPresetChange,
   focusTarget: propFocusTarget,
   onFocusTargetChange,
-  interactionBlocked = false, isMobile = false
+  interactionBlocked = false, isMobile = false, onMobileMove
 }: Canvas3DProps) {
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [hoveredWallId, setHoveredWallId] = useState<string | null>(null);
@@ -1313,6 +1337,7 @@ export function Canvas3D({
   const walkMovement = useRef<[number, number]>([0, 0]);
 
   const [snapMode, setSnapMode] = useState(true);
+  const [mobileSnap, setMobileSnap] = useState(false);
   const nudgeAccumulator = useRef({ x: 0, y: 0 });
 
   // Center camera on bounding box and compute span
@@ -1514,6 +1539,7 @@ export function Canvas3D({
         camera={{ position: [targetX, 600, targetZ + 600], fov: 50, near: 1, far: 20000 }}
       >
         <color attach="background" args={['#f3f2ef']} />
+        {effectiveIsMobile && cameraPreset !== 'walk' && <MobileResizeAnchor controlsRef={controlsRef} target={selectedItem ? [selectedItem.x, (selectedItem.elevation ?? 0) * 0.4, selectedItem.y] : selectedWall ? [(selectedWall.start.x + selectedWall.end.x) / 2, 50, (selectedWall.start.y + selectedWall.end.y) / 2] : selectedFloor ? [selectedFloor.points.reduce((v,p) => v + p.x,0) / selectedFloor.points.length, 0, selectedFloor.points.reduce((v,p) => v + p.y,0) / selectedFloor.points.length] : null} />}
 
         <ambientLight intensity={0.7} />
         <hemisphereLight args={['#ffffff', '#d4cfc6', 1.1]} />
@@ -1646,11 +1672,36 @@ export function Canvas3D({
         />}
       </Canvas>
 
-      {cameraPreset === 'walk' && effectiveIsMobile && !interactionBlocked && <div data-editor-control className="absolute bottom-4 left-4 z-20" onPointerDown={event => event.stopPropagation()}><WalkJoystick onChange={(x, z) => { walkMovement.current = [x, z]; }} /><p className="mt-1 text-center text-xs font-semibold text-slate-600">Walk</p></div>}
       </div>
-      {effectiveIsMobile && canSelect && (selectedItem || selectedWall || selectedFloor) && <div data-editor-control className="shrink-0 flex items-center gap-2 border-t border-slate-200 bg-white px-3 py-2"><span className="truncate text-xs font-semibold flex-1">{selectedItemType?.name ?? (selectedWall ? 'Wall' : 'Floor')}</span><button className="min-h-11 px-3 rounded-xl bg-indigo-50 text-xs text-indigo-700" onClick={onOpenInspector}>Properties</button><button className="min-h-11 px-3 rounded-xl bg-slate-100 text-xs" onClick={handleTriggerFocus}>Focus</button><button className="min-h-11 px-3 rounded-xl bg-slate-100 text-xs" onClick={() => onSelect([], null, null, null)}>Done</button></div>}
-      <PreviewNavigation blocked={interactionBlocked} mode={cameraPreset} onMode={mode => { setFocusTarget(null); setCameraPreset(mode); }} mobile={effectiveIsMobile} gesture={gesture} onGesture={setGesture} onAction={cameraAction} onReset={() => { setFocusTarget(null); walkMovement.current = [0, 0]; setResetVersion(value => value + 1); }} editing={editing} onEdit={() => { setEditing(value => !value); onSelect([], null, null, null); }} minimal={minimalStyle} onMinimal={() => setMinimalStyle(value => !value)} speed={walkSpeed} onSpeed={setWalkSpeed} />
+      {!effectiveIsMobile && <PreviewNavigation blocked={interactionBlocked} mode={cameraPreset} onMode={mode => { setFocusTarget(null); setCameraPreset(mode); }} mobile={effectiveIsMobile} gesture={gesture} onGesture={setGesture} onAction={cameraAction} onReset={() => { setFocusTarget(null); walkMovement.current = [0, 0]; setResetVersion(value => value + 1); }} editing={editing} onEdit={() => { setEditing(value => !value); onSelect([], null, null, null); }} minimal={minimalStyle} onMinimal={() => setMinimalStyle(value => !value)} speed={walkSpeed} onSpeed={setWalkSpeed} />}
     </div>
+    {effectiveIsMobile && <>
+      <MobileControlPortal tools>{cameraPreset !== 'walk' && <RailButton label="Select" active={editing} onClick={() => { setEditing(v => !v); onSelect([],null,null,null); }} />}</MobileControlPortal>
+      <MobileControlPortal>
+        <section className="rail-section" aria-label="3D view controls">
+          {(['perspective','isometric','walk'] as const).map(value => <RailButton key={value} label={value === 'perspective' ? 'General' : value === 'walk' ? 'Walk' : 'Isometric'} active={cameraPreset === value} onClick={() => { setFocusTarget(null); setCameraPreset(value); }} />)}
+          {cameraPreset !== 'walk' && <>
+            <RailButton label="Rotate view" active={gesture === 'rotate'} onClick={() => setGesture('rotate')} />
+            <RailButton label="Pan view" active={gesture === 'pan'} onClick={() => setGesture('pan')} />
+            <RailButton label="Zoom in" onClick={() => cameraAction('in')} /><RailButton label="Zoom out" onClick={() => cameraAction('out')} />
+            {(selectedItem || selectedWall || selectedFloor) && <RailButton label="Focus" onClick={handleTriggerFocus} />}
+            <RailButton label={mobileSnap ? 'Snap' : 'Free'} active={mobileSnap} onClick={() => setMobileSnap(v => !v)} />
+          </>}
+          {cameraPreset === 'walk' && <label className="text-[9px] block text-center">Speed<select aria-label="Walking speed" className="w-full min-h-11" value={walkSpeed} onChange={e => setWalkSpeed(Number(e.target.value))}><option value={0.6}>Slow</option><option value={1.2}>Normal</option><option value={2}>Fast</option></select></label>}
+          <RailButton label="Finishes" active={minimalStyle} onClick={() => setMinimalStyle(v => !v)} />
+          <RailButton label="Reset view" onClick={() => { setFocusTarget(null); walkMovement.current = [0,0]; setResetVersion(v => v + 1); }} />
+        </section>
+      </MobileControlPortal>
+      {!interactionBlocked && <MobileControlPortal glide>
+        <MobileGlide key={[cameraPreset, gesture, editing, mobileSnap, ...selectedItemIds, selectedWallId, selectedFloorId].join(':')} label={cameraPreset === 'walk' ? 'Walking camera' : 'Selected object'} snap={mobileSnap} grid={4}
+          onVector={cameraPreset === 'walk' ? (x,y) => { walkMovement.current = [x,y]; } : undefined}
+          onMove={cameraPreset === 'walk' ? undefined : (x,y) => {
+            const camera = controlsRef.current?.object; if (!camera) return;
+            const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+            const delta = cameraRelativeGlide(x,y,right.x,right.z); onMobileMove?.(delta.x,delta.y);
+          }} />
+      </MobileControlPortal>}
+    </>}
     </MinimalStyleContext.Provider>
   );
 }

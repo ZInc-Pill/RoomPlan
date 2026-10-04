@@ -13,6 +13,7 @@ export interface MobileDragSession {
   primaryId: string;
   moved: boolean;
 }
+export const MOBILE_WALL_DROP_ZONE_PX = 16;
 
 export function startMobileDrag(pointerId: number, start: Point, item: PlacedItem, items: PlacedItem[], selectedIds: string[]): MobileDragSession {
   const ids = selectedIds.includes(item.id) ? selectedIds : [item.id];
@@ -22,7 +23,7 @@ export function startMobileDrag(pointerId: number, start: Point, item: PlacedIte
 /** Absolute displacement from the immutable start avoids stale React updates and accumulated drift. */
 export function moveMobileDrag(session: MobileDragSession, point: Point, zoom: number): PlacedItem[] | null {
   const dx = point.x - session.start.x, dy = point.y - session.start.y;
-  if (!session.moved && Math.hypot(dx, dy) * zoom < 3) return null;
+  if (!session.moved && dx === 0 && dy === 0) return null;
   session.moved = true;
   return session.originals.map(item => {
     const moved = { ...item, x: item.x + dx, y: item.y + dy };
@@ -37,14 +38,14 @@ const bounds = (item: PlacedItem) => {
   return getBoundingBox(item.x, item.y, cmToPx(item.width ?? type.width), cmToPx(item.depth ?? type.depth), item.rotation);
 };
 
-export function resolveMobileDrop(raw: PlacedItem[], items: PlacedItem[], walls: Wall[], zoom: number, grid: number, free: boolean): { items: PlacedItem[]; preview: OpeningDragPreview | null } {
+export function resolveMobileDrop(raw: PlacedItem[], items: PlacedItem[], walls: Wall[], zoom: number, grid: number, free = true): { items: PlacedItem[]; preview: OpeningDragPreview | null } {
   const ids = new Set(raw.map(item => item.id));
   const replace = (changes: PlacedItem[]) => {
     const byId = new Map(changes.map(item => [item.id, item]));
     return items.map(item => byId.get(item.id) ?? item);
   };
   if (raw.length === 1 && isOpening(raw[0])) {
-    const preview = predictOpeningDrag(raw[0], walls, replace(raw), zoom, undefined, 32, true);
+    const preview = predictOpeningDrag(raw[0], walls, replace(raw), zoom, undefined, MOBILE_WALL_DROP_ZONE_PX, true);
     // Occupied/undersized walls never block free placement or make the object jump back.
     return { items: replace([preview.valid && preview.placement ? preview.placement : raw[0]]), preview };
   }

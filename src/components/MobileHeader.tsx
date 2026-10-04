@@ -21,7 +21,7 @@ export function MobileHeader({
   onOpenMenu,
 }: MobileHeaderProps) {
   return (
-    <header className="fixed top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 px-3 pt-[calc(0.4rem+env(safe-area-inset-top,0px))] pb-2 flex items-center justify-between md:hidden shadow-xs">
+    <header className="relative shrink-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 px-3 pt-[calc(0.4rem+env(safe-area-inset-top,0px))] pb-2 flex items-center justify-between shadow-xs">
       {/* Brand */}
       <div className="flex items-center gap-2">
         <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-500/30">

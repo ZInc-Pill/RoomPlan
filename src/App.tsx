@@ -11,7 +11,11 @@ import { ITEM_CATALOG } from './catalog';
 
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { MobileHeader } from './components/MobileHeader';
-import { MobileBottomDock } from './components/MobileBottomDock';
+import { createPortal } from 'react-dom';
+import { MobileWorkspaceContext, RailButton } from './components/MobileWorkspace';
+import { MobileGlide } from './components/MobileGlide';
+import { Move, Plus, Sliders, Copy, Trash2, RotateCw, X, Hand } from 'lucide-react';
+import './mobile-workspace.css';
 import { MobileCatalogDrawer } from './components/MobileCatalogDrawer';
 import { MobileInspectorDrawer } from './components/MobileInspectorDrawer';
 import { MobileLayersDrawer } from './components/MobileLayersDrawer';
@@ -36,17 +40,25 @@ export default function App() {
   const history = { length: historyIndex + 1 + documentState.future.length };
   const [gridOption, setGridOption] = useState<1 | 2 | 3>(1);
   const [dragSnapMode, setDragSnapMode] = useState<'snap' | 'free'>('snap');
+  const [mobile2DSnapMode, setMobile2DSnapMode] = useState<'snap' | 'free'>('free');
   const [mode, setMode] = useState<AppMode>('SELECT');
   const [view3D, setView3D] = useState(false);
+  const [railHost, setRailHost] = useState<HTMLDivElement | null>(null);
+  const [glideHost, setGlideHost] = useState<HTMLDivElement | null>(null);
+  const [panelHost, setPanelHost] = useState<HTMLDivElement | null>(null);
+  const [glideOpen, setGlideOpen] = useState(false);
+  const [rotationOpen, setRotationOpen] = useState(false);
+  const [contextCollapsed, setContextCollapsed] = useState(false);
+  const [toolHost, setToolHost] = useState<HTMLElement | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
   const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
 
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px), (max-width: 1023px) and (max-height: 500px) and (pointer: coarse)').matches);
   const [appViewportHeight, setAppViewportHeight] = useState(() => Math.round(window.visualViewport?.height ?? window.innerHeight));
   useEffect(() => {
-    const query = window.matchMedia('(max-width: 767px)');
+    const query = window.matchMedia('(max-width: 767px), (max-width: 1023px) and (max-height: 500px) and (pointer: coarse)');
     const changed = () => { setIsMobile(query.matches); if (!query.matches) setActivePanel(null); };
     query.addEventListener('change', changed);
     return () => query.removeEventListener('change', changed);
@@ -68,7 +80,8 @@ export default function App() {
   }, []);
 
   // Modals & Drawers State
-  const [activePanel, setActivePanel] = useState<'catalog' | 'layers' | 'inspector' | 'menu' | null>(null);
+  const [activePanel, setActivePanel] = useState<'catalog' | 'layers' | 'inspector' | 'menu' | 'draw' | 'tools' | null>(null);
+  useEffect(() => { setActivePanel(p => p === 'draw' || p === 'tools' ? null : p); }, [view3D]);
   const isCatalogOpen = activePanel === 'catalog';
   const isLayersOpen = activePanel === 'layers';
   const isInspectorOpen = activePanel === 'inspector';
@@ -81,7 +94,7 @@ export default function App() {
   const setIsMenuOpen = panelSetter('menu');
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isScreenshotModalOpen, setIsScreenshotModalOpen] = useState(false);
-  
+
   // Clipboard state
   const [clipboard, setClipboard] = useState<{ type: 'item' | 'wall' | 'floor' | 'comment'; data: any } | null>(null);
 
@@ -116,7 +129,7 @@ export default function App() {
     if (isInteractiveElement(e.target) || activePanel || isShortcutsOpen || isScreenshotModalOpen) return;
 
     const key = e.key.toLowerCase();
-    
+
     if ((e.metaKey || e.ctrlKey) && key === 'z') {
       e.preventDefault();
       if (e.shiftKey) {
@@ -158,9 +171,9 @@ export default function App() {
           handleSetItems(prev => [...prev, newItem]);
           setSelectedItemIds([newId]);
         } else if (clipboard.type === 'wall') {
-          const newWall = { 
-            ...clipboard.data, 
-            id: newId, 
+          const newWall = {
+            ...clipboard.data,
+            id: newId,
             start: { x: clipboard.data.start.x + 20, y: clipboard.data.start.y + 20 },
             end: { x: clipboard.data.end.x + 20, y: clipboard.data.end.y + 20 }
           };
@@ -191,7 +204,7 @@ export default function App() {
       case 'f': setMode('DRAW_FLOOR'); break;
       case 'c': setMode('COMMENT'); break;
       case 'm': setMode('RULER'); break;
-      case 'escape': 
+      case 'escape':
         setMode('SELECT');
         setSelectedItemIds([]);
         setSelectedWallId(null);
@@ -550,14 +563,31 @@ export default function App() {
     }
   };
 
+  const selectionKey = [...selectedItemIds, selectedWallId, selectedFloorId, selectedCommentId].join(':');
+  const hasMobileSelection = items.some(item => selectedItemIds.includes(item.id)) || walls.some(wall => wall.id === selectedWallId) || floors.some(floor => floor.id === selectedFloorId) || comments.some(comment => comment.id === selectedCommentId);
+  useEffect(() => { setGlideOpen(false); setRotationOpen(false); }, [selectionKey, view3D, mode, cameraPreset3D]);
+  useEffect(() => { if (activePanel) { setGlideOpen(false); setRotationOpen(false); } }, [activePanel]);
+  useEffect(() => { setContextCollapsed(false); }, [selectionKey, view3D, cameraPreset3D]);
+  useEffect(() => { if (!hasMobileSelection) setActivePanel(panel => panel === "inspector" ? null : panel); }, [hasMobileSelection]);
+  const mobileMove = (dx: number, dy: number) => {
+    if (selectedItemIds.length) updateDocument(doc => ({ ...doc, items: doc.items.map(item => {
+      if (!selectedItemIds.includes(item.id)) return item;
+      const moved = { ...item, x: item.x + dx, y: item.y + dy };
+      if (!isOpening(item)) return moved;
+      const { wallId, wallOffset, ...detached } = moved; return detached;
+    }) }), true);
+    else handleNudgeSelected(dx, dy);
+  };
+
   const handleScreenshot = () => {
     setIsScreenshotModalOpen(true);
   };
 
   return (
-    <div style={{ height: appViewportHeight }} className="flex flex-col w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden relative">
+    <MobileWorkspaceContext.Provider value={{ rail: railHost, glide: glideHost, glideOpen, tools: toolHost }}>
+    <div data-mobile-workspace={isMobile ? "true" : undefined} style={{ height: appViewportHeight }} className="flex flex-col w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden relative">
       {/* Mobile Top Header */}
-      <MobileHeader 
+      {isMobile && <MobileHeader
         view3D={view3D}
         setView3D={setView3D}
         onUndo={handleUndo}
@@ -565,10 +595,10 @@ export default function App() {
         canUndo={historyIndex > 0}
         canRedo={historyIndex < history.length - 1}
         onOpenMenu={() => setIsMenuOpen(true)}
-      />
+      />}
 
       {/* Desktop Top Header */}
-      <header className="hidden md:flex items-center justify-between px-6 h-16 bg-white border-b border-slate-200 shadow-sm z-10 shrink-0">
+      <header className="desktop-workspace-control hidden md:flex items-center justify-between px-6 h-16 bg-white border-b border-slate-200 shadow-sm z-10 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-indigo-200 shadow-lg">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
@@ -577,13 +607,13 @@ export default function App() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex bg-slate-100 p-1 rounded-full border border-slate-200 mr-2">
-            <button 
+            <button
               onClick={() => setView3D(false)}
               className={`px-6 py-1.5 rounded-full text-sm font-semibold transition-colors ${!view3D ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
             >
               2D Layout
             </button>
-            <button 
+            <button
               onClick={() => setView3D(true)}
               className={`px-6 py-1.5 rounded-full text-sm font-semibold transition-colors ${view3D ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
             >
@@ -612,9 +642,9 @@ export default function App() {
           <button onClick={handleClear} className="ml-2 text-sm font-medium text-slate-500 hover:text-slate-900">Clear Plan</button>
         </div>
       </header>
-      
+
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        <Toolbar 
+        {!isMobile && <Toolbar
           mode={mode}
           setMode={setMode}
           view3D={view3D}
@@ -635,9 +665,39 @@ export default function App() {
             setSelectedFloorId(floorId);
             setSelectedCommentId(commentId || null);
           }}
-        />
-        <main ref={mainRef} className="flex-1 relative bg-white flex items-center justify-center overflow-hidden">
-          <div className="absolute top-28 md:top-16 left-2 z-20 max-w-[calc(100%-1rem)] rounded-lg bg-white/95 border border-slate-200 px-2 py-1 text-[11px] shadow-sm" data-editor-control>
+        />}
+        <main ref={mainRef} className={`flex-1 min-w-0 relative bg-white flex overflow-hidden ${isMobile ? 'flex-col' : 'items-center justify-center'}`}>
+          {isMobile && <div className="mobile-status" role="status">{documentState.error || projectError || saveStatus}</div>}
+          {isMobile && <div className="mobile-view-controls" aria-label="View controls" data-editor-control><div ref={setRailHost} /></div>}
+          <div className={isMobile ? 'mobile-scene-row' : 'contents'}>
+          {isMobile && (hasMobileSelection || (view3D && cameraPreset3D === 'walk')) && !isInspectorOpen && <aside className="mobile-rail" aria-label="Contextual controls" data-editor-control>
+            <div className="mobile-rail-scroll">
+              <RailButton label={contextCollapsed ? 'Controls' : 'Collapse'} icon={Sliders} onClick={() => { setContextCollapsed(v => !v); setGlideOpen(false); setRotationOpen(false); }} />
+              {!contextCollapsed && <>
+                {!selectedCommentId && <RailButton label={glideOpen ? 'Close Move' : 'Move'} icon={Move} active={glideOpen} disabled={!!activePanel} onClick={() => { setRotationOpen(false); setGlideOpen(v => !v); }} />}
+                {hasMobileSelection && (!view3D || cameraPreset3D !== 'walk') && <section aria-label="Selection actions" className="rail-section">
+                  {!selectedCommentId && <>
+                    <RailButton label="Rotate" icon={RotateCw} active={rotationOpen} onClick={() => { setGlideOpen(false); setActivePanel(null); setRotationOpen(v => !v); }} />
+                    <RailButton label="Properties" icon={Sliders} onClick={() => setIsInspectorOpen(true)} />
+                    <RailButton label="Duplicate" icon={Copy} onClick={handleDuplicateSelected} />
+                  </>}
+                  <RailButton label="Delete" icon={Trash2} onClick={handleDelete} />
+                  <RailButton label="Deselect" icon={X} onClick={() => { setSelectedItemIds([]); setSelectedWallId(null); setSelectedFloorId(null); setSelectedCommentId(null); }} />
+                </section>}
+              </>}
+            </div>
+          </aside>}
+          {isMobile && isInspectorOpen && <div ref={setPanelHost} className="mobile-context-properties" aria-label="Selection properties" data-editor-control />}
+          {isMobile && rotationOpen && <div className="mobile-glide-column mobile-rotation" data-editor-control>
+            <p className="text-xs font-semibold text-center">Rotate selection</p>
+            <RailButton label="-45 degrees" icon={RotateCw} onClick={() => handleRotateSelected(-Math.PI / 4)} />
+            <RailButton label="+45 degrees" icon={RotateCw} onClick={() => handleRotateSelected(Math.PI / 4)} />
+            <RailButton label="Close rotation" icon={X} onClick={() => setRotationOpen(false)} />
+          </div>}
+          {isMobile && glideOpen && <div className="mobile-glide-column" ref={setGlideHost}>
+            {!view3D && <MobileGlide key={selectionKey + mode + mobile2DSnapMode} label="Selected object" onMove={mobileMove} snap={mobile2DSnapMode === 'snap'} grid={getGridSize(gridOption)} />}
+          </div>}
+          <div className="desktop-workspace-control hidden md:block absolute top-28 md:top-16 left-2 z-20 max-w-[calc(100%-1rem)] rounded-lg bg-white/95 border border-slate-200 px-2 py-1 text-[11px] shadow-sm" data-editor-control>
             <span role="status">{saveStatus}</span>
             {documentState.error && <p role="alert" className="max-w-xs text-rose-700">{documentState.error}</p>}
             <button className="ml-2 underline min-h-8" onClick={() => {
@@ -665,14 +725,14 @@ export default function App() {
             </div>)}
             {projectError && <div role="alert" className="text-rose-700 max-w-xs">{projectError}<button className="ml-2 underline min-h-8" onClick={() => setProjectError(null)}>Dismiss</button></div>}
           </div>
-          <div className="relative h-full min-w-0 flex-1" data-scene>
+          <div className="relative h-full min-h-0 min-w-0 flex-1" data-scene>
           {view3D ? (
             <PreviewBoundary onReturn={() => setView3D(false)}>
             <Suspense fallback={<div role="status" className="p-6 text-slate-600">Loading 3D preview…</div>}>
             <Canvas3D interactionBlocked={Boolean(activePanel) || isShortcutsOpen || isScreenshotModalOpen}
-              walls={walls} 
-              floors={floors} 
-              items={items} 
+              walls={walls}
+              floors={floors}
+              items={items}
               comments={comments}
               selectedItemIds={selectedItemIds}
               selectedWallId={selectedWallId}
@@ -698,16 +758,17 @@ export default function App() {
               focusTarget={focusTarget3D}
               onFocusTargetChange={setFocusTarget3D}
               isMobile={isMobile}
+              onMobileMove={mobileMove}
             />
             </Suspense>
             </PreviewBoundary>
           ) : (
-            <Canvas2D isMobile={isMobile} dragSnapMode={dragSnapMode} setDragSnapMode={setDragSnapMode} gridOption={gridOption} setGridOption={setGridOption}
-              walls={walls} 
+            <Canvas2D isMobile={isMobile} dragSnapMode={isMobile ? mobile2DSnapMode : dragSnapMode} setDragSnapMode={isMobile ? setMobile2DSnapMode : setDragSnapMode} gridOption={gridOption} setGridOption={setGridOption}
+              walls={walls}
               floors={floors}
               items={items}
               comments={comments}
-              mode={mode} 
+              mode={mode}
               selectedItemIds={selectedItemIds}
               selectedWallId={selectedWallId}
               selectedFloorId={selectedFloorId}
@@ -731,7 +792,7 @@ export default function App() {
           )}
 
           {!view3D && (
-            <div className="hidden md:flex absolute bottom-8 left-1/2 -translate-x-1/2 items-center bg-white shadow-2xl rounded-full border border-slate-200 p-2 z-20 gap-2 scale-125 origin-bottom">
+            <div className="desktop-workspace-control hidden md:flex absolute bottom-8 left-1/2 -translate-x-1/2 items-center bg-white shadow-2xl rounded-full border border-slate-200 p-2 z-20 gap-2 scale-125 origin-bottom">
               <div className="relative group">
                 <button
                   onClick={() => setMode('SELECT')}
@@ -798,23 +859,22 @@ export default function App() {
               </div>
             </div>
           )}
-          
-          {/* Mobile Layers Button (Top Left) */}
-          <button
-            onClick={() => setIsLayersOpen(true)}
-            className="md:hidden absolute top-16 mt-2 left-3 flex items-center justify-center p-2.5 bg-white/90 backdrop-blur-xl border border-slate-200 rounded-xl shadow-sm text-slate-600 z-10"
-            title="Layers"
-          >
-            <ListTree className="w-5 h-5" />
-            {(items.length > 0 || walls.length > 0 || floors.length > 0 || comments.length > 0) && (
-              <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center shadow-sm">
-                {items.length + walls.length + floors.length + comments.length}
-              </span>
-            )}
-          </button>
+
 
           </div>
-          <PropertiesPanel 
+          </div>
+          {isMobile && !isInspectorOpen && <div ref={setPanelHost} className={`mobile-panel-host ${activePanel ? 'is-open' : ''} ${isCatalogOpen ? 'catalog-open' : ''}`} data-editor-control />}
+          {isMobile && <nav className="mobile-main-tools" aria-label="Main tools" data-editor-control>
+            {!view3D && <>
+              <RailButton label="Select" icon={MousePointer2} active={mode === 'SELECT' && !activePanel} onClick={() => { setActivePanel(null); setMode('SELECT'); }} />
+              <RailButton label="Draw" icon={PenTool} active={activePanel ? activePanel === 'draw' : mode === 'DRAW_WALL' || mode === 'DRAW_FLOOR'} onClick={() => setActivePanel(p => p === 'draw' ? null : 'draw')} />
+            </>}
+            {view3D && <div ref={setToolHost} className="mobile-tool-host" />}
+            <RailButton label="Objects" icon={Plus} active={isCatalogOpen} onClick={() => setIsCatalogOpen(!isCatalogOpen)} />
+            <RailButton label="Layers" icon={ListTree} active={isLayersOpen} onClick={() => setIsLayersOpen(!isLayersOpen)} />
+            {!view3D && <RailButton label="Tools" icon={Sliders} active={activePanel ? activePanel === 'tools' : ['PAN','RULER','COMMENT'].includes(mode)} onClick={() => setActivePanel(p => p === 'tools' ? null : 'tools')} />}
+          </nav>}
+          {!isMobile && <PropertiesPanel
             selectedItemIds={selectedItemIds}
             selectedWallId={selectedWallId}
             selectedFloorId={selectedFloorId}
@@ -826,32 +886,18 @@ export default function App() {
             onUpdateFloor={handleUpdateFloor}
             onDelete={handleDelete}
             onDuplicate={handleDuplicateSelected}
-          />
+          />}
         </main>
       </div>
 
-      {/* Mobile Bottom Dock or 3D Control Deck */}
-      {!view3D && (
-        <MobileBottomDock glideSnapMode={dragSnapMode} setGlideSnapMode={setDragSnapMode} gridSize={getGridSize(gridOption)}
-          mode={mode}
-          setMode={setMode}
-          onOpenCatalog={() => setIsCatalogOpen(true)}
-          onOpenLayers={() => setIsLayersOpen(true)}
-          selectedItemIds={selectedItemIds}
-          selectedWallId={selectedWallId}
-          selectedFloorId={selectedFloorId}
-          onRotate={handleRotateSelected}
-          onDuplicate={handleDuplicateSelected}
-          onDelete={handleDelete}
-          itemCount={items.length}
-          onOpenInspector={() => setIsInspectorOpen(true)}
-          isInspectorOpen={isInspectorOpen || isCatalogOpen || isLayersOpen || isMenuOpen}
-          onNudgeSelected={handleNudgeSelected}
-        />
-      )}
-
-      {/* Mobile Drawers & Menus */}
-      <MobileCatalogDrawer 
+      {isMobile && panelHost && createPortal(<div className="mobile-panels">
+      {(activePanel === 'draw' || activePanel === 'tools') && <section className="mobile-tool-menu" aria-label={activePanel === 'draw' ? 'Drawing tools' : 'More tools'}>
+        <div className="flex items-center justify-between"><h2>{activePanel === 'draw' ? 'Draw your room' : 'More tools'}</h2><button aria-label="Close tools" onClick={() => setActivePanel(null)}><X size={20} /></button></div>
+        <div className="mobile-tool-choices">
+          {(activePanel === 'draw' ? [{label:'Walls', icon:PenTool, value:'DRAW_WALL'}, {label:'Floor', icon:Layers, value:'DRAW_FLOOR'}] : [{label:'Pan', icon:Hand, value:'PAN'}, {label:'Measure', icon:Ruler, value:'RULER'}, {label:'Note', icon:MessageSquare, value:'COMMENT'}]).map(tool => <RailButton key={tool.value} label={tool.label} icon={tool.icon} active={mode === tool.value} onClick={() => { setMode(tool.value as AppMode); setActivePanel(null); }} />)}
+        </div>
+      </section>}
+      <MobileCatalogDrawer
         isOpen={isCatalogOpen}
         onClose={() => setIsCatalogOpen(false)}
         onAddItem={(typeId) => {
@@ -859,7 +905,7 @@ export default function App() {
         }}
       />
 
-      <MobileLayersDrawer 
+      <MobileLayersDrawer
         isOpen={isLayersOpen}
         onClose={() => setIsLayersOpen(false)}
         items={items}
@@ -874,9 +920,7 @@ export default function App() {
           setSelectedWallId(wallId);
           setSelectedFloorId(floorId);
           setSelectedCommentId(commentId || null);
-          if (itemIds.length > 0 || wallId || floorId) {
-            setIsInspectorOpen(true);
-          }
+          setActivePanel(null);
         }}
         onDeleteItem={handleDeleteItem}
         onDeleteWall={handleDeleteWall}
@@ -884,7 +928,7 @@ export default function App() {
         onDeleteComment={handleDeleteComment}
       />
 
-      <MobileInspectorDrawer glideSnapMode={dragSnapMode} setGlideSnapMode={setDragSnapMode} gridSize={getGridSize(gridOption)}
+      <MobileInspectorDrawer glideSnapMode={!view3D ? mobile2DSnapMode : dragSnapMode} setGlideSnapMode={!view3D ? setMobile2DSnapMode : setDragSnapMode} gridSize={getGridSize(gridOption)}
         isOpen={isInspectorOpen}
         onClose={() => setIsInspectorOpen(false)}
         selectedItemIds={selectedItemIds}
@@ -902,7 +946,8 @@ export default function App() {
         onNudgeSelected={handleNudgeSelected}
       />
 
-      <MobileActionsMenu 
+      <MobileActionsMenu
+        onRestore={() => { try { const backup = browserProjectStore().loadBackup(); if (!backup) throw new Error('No previous save available.'); updateDocument(() => backup); setSelectedItemIds([]); setSelectedWallId(null); setSelectedFloorId(null); setActivePanel(null); } catch (error) { setProjectError(String(error)); } }}
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
         onSave={handleSave}
@@ -910,6 +955,7 @@ export default function App() {
         onClear={handleClear}
         onScreenshot={handleScreenshot}
       />
+      </div>, panelHost)}
 
       {isShortcutsOpen && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setIsShortcutsOpen(false)}>
@@ -921,7 +967,7 @@ export default function App() {
               </button>
             </div>
             <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700 mb-3"><strong>3D preview</strong><p>Choose Rotate view or Pan view, then drag with one finger. Pinch to zoom or use − / +. Two fingers pan.</p><p>Reset returns to the room. View options contains camera step buttons and finishes.</p><p>On mobile, tap Edit before selecting an object. Properties contains its editing controls.</p></div>
-            <div className="rounded-xl bg-indigo-50 p-3 text-sm text-slate-700 mb-3"><strong>Walk / POV mode</strong><p>WASD or arrow keys — move forward, backward and sideways.</p><p>Q / E — turn left / right without a mouse.</p><p>Click the scene — mouse look. Esc — release mouse.</p><p>Mobile: left joystick to walk; drag the scene to look. Walking speed is in View options.</p></div>
+            <div className="rounded-xl bg-indigo-50 p-3 text-sm text-slate-700 mb-3"><strong>Walk / POV mode</strong><p>WASD or arrow keys — move forward, backward and sideways.</p><p>Q / E — turn left / right without a mouse.</p><p>Click the scene — mouse look. Esc — release mouse.</p><p>Mobile: open Glide in the sidebar to walk; drag the scene to look. Choose walking speed in the sidebar.</p></div>
             <div className="grid grid-cols-2 gap-y-3 text-sm text-slate-600">
               <div className="font-medium text-slate-800">Select Mode</div>
               <div className="text-right">
@@ -981,5 +1027,6 @@ export default function App() {
         onCapture={handleCaptureScreenshotBlob}
       />
     </div>
+    </MobileWorkspaceContext.Provider>
   );
 }

@@ -1,3 +1,4 @@
+import { MobileControlPortal, RailButton } from './MobileWorkspace';
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Point, Wall, PlacedItem, AppMode, Floor, CommentType } from '../types';
 import { ITEM_CATALOG } from '../catalog';
@@ -26,6 +27,7 @@ import { useCanvasViewport } from '../hooks/useCanvasViewport';
 import { useCanvasSelection } from '../hooks/useCanvasSelection';
 import { useFurnitureInteraction, getItemBounds } from '../hooks/useFurnitureInteraction';
 import { useMobileItemDrag } from '../hooks/useMobileItemDrag';
+import { MobileGestureOwnership } from '../utils/mobileGestureOwnership';
 import { useWallInteraction } from '../hooks/useWallInteraction';
 import { useFloorInteraction } from '../hooks/useFloorInteraction';
 import { SvgFloorPatterns } from './SvgFloorPatterns';
@@ -69,6 +71,7 @@ export function Canvas2D({
   gridOption, setGridOption, isDrawerOpen = false
 }: Canvas2DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mobileOwnership = useRef(new MobileGestureOwnership());
   
   const currentGridSize = getGridSize(gridOption);
 
@@ -134,6 +137,7 @@ export function Canvas2D({
   const {
     zoom,
     pan,
+    setPan,
     isPanning,
     getPoint,
     handleZoomIn,
@@ -173,13 +177,48 @@ export function Canvas2D({
   const mobileDrag = useMobileItemDrag({ freeDrag, mode, items, walls, selectedItemIds, currentGridSize, zoom, getPoint, selectItem, onUpdateItems, onCommit: onCommitMobileItems });
   cancelFurnitureDraggingRef.current = () => { mobileDrag.cancel(); cancelFurnitureDragging(); };
   const handleItemPointerDown = (event: React.PointerEvent, item: PlacedItem) => {
-    if (isMobile || event.pointerType === 'touch') mobileDrag.down(event, item);
+    if (isMobile) mobileDrag.down(event, item);
     else handleDesktopItemPointerDown(event, item);
   };
   const isDraggingItem = (id: string) => mobileDrag.isDragging(id) || isDesktopDraggingItem(id);
-  const openingPreview = mobileDrag.visual ? mobileDrag.visual.preview : desktopOpeningPreview;
+  const openingPreview = isMobile ? null : desktopOpeningPreview;
   const draftsById = new Map(mobileDrag.visual?.items.map(item => [item.id, item]) ?? []);
   const renderedItems = mobileDrag.visual ? items.map(item => draftsById.get(item.id) ?? item) : items;
+  useEffect(() => {
+    if (!isMobile) return;
+    const reset = () => mobileOwnership.current.clear();
+    window.addEventListener('blur', reset);
+    document.addEventListener('visibilitychange', reset);
+    return () => { window.removeEventListener('blur', reset); document.removeEventListener('visibilitychange', reset); reset(); };
+  }, [isMobile]);
+
+  const resizeSelection = useRef({ items, selectedItemIds, walls, floors, selectedWallId, selectedFloorId, zoom });
+  resizeSelection.current = { items, selectedItemIds, walls, floors, selectedWallId, selectedFloorId, zoom };
+  useEffect(() => {
+    if (!isMobile || !containerRef.current) return;
+    let previous = containerRef.current.getBoundingClientRect();
+    const observer = new ResizeObserver(() => {
+      const rect = containerRef.current!.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const state = resizeSelection.current;
+      const item = state.items.find(i => state.selectedItemIds.includes(i.id));
+      const wall = state.walls.find(w => w.id === state.selectedWallId);
+      const floor = state.floors.find(f => f.id === state.selectedFloorId);
+      const focus = item ?? (wall ? { x: (wall.start.x + wall.end.x) / 2, y: (wall.start.y + wall.end.y) / 2 } : floor ? { x: floor.points.reduce((sum,p) => sum + p.x,0) / floor.points.length, y: floor.points.reduce((sum,p) => sum + p.y,0) / floor.points.length } : null);
+      const bounds = item ? getItemBounds(item) : null;
+      const marginX = Math.min(rect.width / 2, bounds ? (bounds.right - bounds.left) * state.zoom / 2 + 12 : 24);
+      const marginY = Math.min(rect.height / 2, bounds ? (bounds.bottom - bounds.top) * state.zoom / 2 + 12 : 24);
+      // Preserve screen position; translate only as far as needed to avoid clipping.
+      const dx = previous.left - rect.left, dy = previous.top - rect.top;
+      setPan(p => {
+        const x = p.x + dx, y = p.y + dy;
+        if (!focus) return { x, y };
+        return { x: x + Math.max(marginX - (focus.x * state.zoom + x), Math.min(0, rect.width - marginX - (focus.x * state.zoom + x))), y: y + Math.max(marginY - (focus.y * state.zoom + y), Math.min(0, rect.height - marginY - (focus.y * state.zoom + y))) };
+      });
+      previous = rect;
+    });
+    observer.observe(containerRef.current); return () => observer.disconnect();
+  }, [isMobile, setPan]);
 
   // Wall Interaction Hook
   const {
@@ -316,8 +355,12 @@ export function Canvas2D({
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    if (isMobile && mobileOwnership.current.objectGesture) {
+      mobileDrag.move(e);
+      return;
+    }
+    if (isMobile && mobileOwnership.current.kind(e.pointerId) === 'ignored') return;
     if (handleViewportPointerMove(e)) return;
-    if (mobileDrag.move(e)) return;
     
     const pt = getPoint(e);
 
@@ -348,8 +391,14 @@ export function Canvas2D({
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
+    if (isMobile) {
+      const ownership = mobileOwnership.current;
+      const blocked = ownership.objectGesture || ownership.kind(e.pointerId) === 'ignored';
+      if (ownership.objectGesture) mobileDrag.up(e);
+      ownership.up(e.pointerId);
+      if (blocked) return;
+    }
     handleViewportPointerUp(e);
-    if (mobileDrag.up(e)) return;
 
     const { handled } = handleSelectionPointerUp(e);
     if (handled) return;
@@ -427,6 +476,7 @@ export function Canvas2D({
 
 
   return (
+    <>
     <div 
       ref={containerRef}
       className={`relative w-full h-full bg-[#f8fafc] overflow-hidden select-none touch-none ${
@@ -442,7 +492,23 @@ export function Canvas2D({
       }`}
       onPointerDownCapture={e => {
         if (isDrawerOpen) { e.stopPropagation(); return; }
+        if (isMobile && mobileOwnership.current.objectGesture) {
+          mobileOwnership.current.down(e.pointerId, 'other');
+          e.currentTarget.setPointerCapture(e.pointerId);
+          e.preventDefault(); e.stopPropagation(); return;
+        }
         if (e.target instanceof Element && e.target.closest('button, input, textarea, select, [role="dialog"], [data-editor-control]')) return;
+        if (isMobile && e.target instanceof Element) {
+          const object = e.target.closest('[data-mobile-drag-object]');
+          const entity = e.target.closest('[data-scene-entity]');
+          const kind = mobileOwnership.current.down(e.pointerId, object ? 'object' : entity ? 'other' : 'empty');
+          if (kind === 'ignored') {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            e.preventDefault(); e.stopPropagation(); return;
+          }
+          if (kind !== 'empty') return;
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }
         const { handled } = handleViewportPointerDown(e);
         if (handled) {
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -452,8 +518,23 @@ export function Canvas2D({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={(e) => { if (!e.buttons) handlePointerUp(e); }}
-      onPointerCancel={e => { handleViewportPointerUp(e); cancelActiveInteractions(); }}
+      onPointerLeave={(e) => { if (!isMobile && !e.buttons) handlePointerUp(e); }}
+      onPointerCancel={e => {
+        if (isMobile) {
+          const ownership = mobileOwnership.current;
+          const blocked = ownership.objectGesture || ownership.kind(e.pointerId) === 'ignored';
+          mobileDrag.cancelPointer(e.pointerId);
+          ownership.up(e.pointerId);
+          if (blocked) return;
+        }
+        handleViewportPointerUp(e); cancelActiveInteractions();
+      }}
+      onLostPointerCapture={e => {
+        if (!isMobile) return;
+        mobileDrag.cancelPointer(e.pointerId);
+        if (mobileOwnership.current.kind(e.pointerId) === 'empty') handleViewportPointerUp(e);
+        mobileOwnership.current.up(e.pointerId);
+      }}
       onDoubleClick={handleDoubleClick}
     >
       <div 
@@ -493,6 +574,7 @@ export function Canvas2D({
             onPointerLeave={() => setHoveredFloorId(null)}
           >
             <polygon
+              data-scene-entity="floor"
               points={floor.points.map(p => `${p.x},${p.y}`).join(' ')}
               fill={floor.material ? `url(#pattern-${floor.material})` : (floor.color || '#e2e8f0')}
               stroke={floor.id === selectedFloorId ? "#4f46e5" : "#94a3b8"}
@@ -523,6 +605,7 @@ export function Canvas2D({
           return (
           <g 
             key={wall.id} 
+            data-scene-entity="wall"
             onPointerDown={(e) => handleWallPointerDown(e, wall)} 
             className={mode === 'SELECT' ? 'pointer-events-auto cursor-grab active:cursor-grabbing' : ''}
             style={wall.id === selectedWallId ? { filter: 'drop-shadow(0px 0px 8px rgba(99,102,241,0.6))' } : {}}
@@ -623,7 +706,7 @@ export function Canvas2D({
         )}
 
         {/* Drawing Floor Preview */}
-        {mode === 'DRAW_FLOOR' && (
+        {!isMobile && mode === 'DRAW_FLOOR' && (
           <g>
             {floorDrawMode === 'rectangle' && rectStart && previewPt && (() => {
               const minX = Math.min(rectStart.x, previewPt.x);
@@ -885,7 +968,7 @@ export function Canvas2D({
 
         {/* Active Floor Handles, Edge Dimension Pills, and Midpoint '+' Splitters */}
         {selectedFloor && mode === 'SELECT' && (
-          <g>
+          <g data-scene-entity="floor-handles">
             {/* Edge dimension pills & Midpoint '+' buttons */}
             {selectedFloor.points.map((p1, i) => {
               const nextIdx = (i + 1) % selectedFloor.points.length;
@@ -987,8 +1070,9 @@ export function Canvas2D({
         return (
           <div
             key={item.id}
+            data-scene-entity="object"
+            data-mobile-drag-object={isMobile && mode === 'SELECT' ? '' : undefined}
             onPointerDown={(e) => handleItemPointerDown(e, item)}
-            onLostPointerCapture={() => { if (mobileDrag.active()) mobileDrag.cancel(); }}
             className={`absolute shadow-sm transition-shadow pointer-events-auto ${!isMobile && !['door', 'window'].includes(typeInfo.shape) ? 'overflow-hidden' : ''}`}
             style={{
               left: item.x,
@@ -1103,7 +1187,7 @@ export function Canvas2D({
               <div className="absolute inset-2 border-2 border-dashed border-black/10 rounded-sm"></div>
             )}
 
-            {isSelected && (
+            {!isMobile && isSelected && (
               <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none tracking-wider">
                 {typeInfo.name}
               </div>
@@ -1160,6 +1244,7 @@ export function Canvas2D({
         return (
           <div
             key={comment.id}
+            data-scene-entity="comment"
             onPointerDown={(e) => handleCommentPointerDown(e, comment)}
             className="absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 group"
             style={{ left: comment.x, top: comment.y }}
@@ -1212,7 +1297,7 @@ export function Canvas2D({
       </div>
       
       {/* Wall drawing helper banner for mobile */}
-      {mode === 'DRAW_WALL' && drawingStart && (
+      {!isMobile && mode === 'DRAW_WALL' && drawingStart && (
         <div className="absolute top-16 md:top-6 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-xs px-3.5 py-1.5 rounded-full shadow-lg z-20 flex items-center gap-2 animate-in fade-in">
           <span>Tap or drag to finish wall</span>
           <button 
@@ -1225,7 +1310,7 @@ export function Canvas2D({
       )}
 
       {/* Floor Drawing Mode HUD - Cancel, Undo, Finish & Shape toggles */}
-      {mode === 'DRAW_FLOOR' && (
+      {!isMobile && mode === 'DRAW_FLOOR' && (
         <div className="absolute top-16 md:top-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 z-30 pointer-events-auto max-w-[94vw] animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-md text-white px-3 py-1.5 rounded-2xl shadow-xl border border-slate-800/80 text-xs">
             {/* Draw Mode Switcher - Primary Rectangle first, Secondary Freeform */}
@@ -1325,7 +1410,7 @@ export function Canvas2D({
       )}
 
       {/* Floating Selected Floor Adjustment HUD */}
-      {mode === 'SELECT' && selectedFloor && !isDrawerOpen && (
+      {!isMobile && mode === 'SELECT' && selectedFloor && !isDrawerOpen && (
         <div className="absolute bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:bottom-28 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200 p-2.5 z-20 flex flex-col gap-2 max-w-[95vw] animate-in fade-in slide-in-from-bottom-3 duration-150">
           {/* Header info */}
           <div className="flex items-center justify-between gap-3 px-1 text-xs">
@@ -1470,7 +1555,7 @@ export function Canvas2D({
       )}
 
       {/* Canvas UI Overlays */}
-      <div className="hidden md:flex absolute top-6 left-6 items-center gap-4 bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-sm pointer-events-none z-10">
+      <div className="desktop-workspace-control hidden md:flex absolute top-6 left-6 items-center gap-4 bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-sm pointer-events-none z-10">
         <span className="text-xs font-bold text-slate-500">
           SCALE: 1 Sub-Grid = {gridOption === 1 ? '0.5m' : gridOption === 2 ? '0.25m' : '0.125m'} | 1 Main Grid = {pxToMeters(currentGridSize * 5)}m
         </span>
@@ -1480,7 +1565,7 @@ export function Canvas2D({
         </span>
       </div>
 
-      <div className="absolute top-16 md:top-6 right-3 md:right-6 flex items-center gap-1 bg-white/90 backdrop-blur p-1 rounded-xl border border-slate-200 shadow-sm z-10">
+      <div className="desktop-workspace-control hidden md:flex absolute top-16 md:top-6 right-3 md:right-6 flex items-center gap-1 bg-white/90 backdrop-blur p-1 rounded-xl border border-slate-200 shadow-sm z-10">
         <button aria-label="Free object dragging" aria-pressed={freeDrag} onClick={() => setDragSnapMode(freeDrag ? 'snap' : 'free')} className="min-h-11 min-w-11 px-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50" title={isMobile ? 'Furniture snaps on release; windows attach near walls' : 'Furniture drag snapping; windows stay aligned to walls'}>{freeDrag ? 'Free' : 'Snap'}</button>
         <button 
           onClick={() => setGridOption(gridOption === 3 ? 1 : (gridOption + 1) as 1|2|3)}
@@ -1518,5 +1603,22 @@ export function Canvas2D({
       </div>
 
     </div>
+    {isMobile && <MobileControlPortal>
+      <section className="rail-section" aria-label="2D view controls">
+        <RailButton label={freeDrag ? 'Free' : 'Snap'} icon={Magnet} active={!freeDrag} onClick={() => setDragSnapMode(freeDrag ? 'snap' : 'free')} />
+        <RailButton label={`${currentGridSize / 40}m grid`} onClick={() => setGridOption(gridOption === 3 ? 1 : (gridOption + 1) as 1|2|3)} />
+        <RailButton label="Zoom in" icon={ZoomIn} onClick={handleZoomIn} />
+        <RailButton label="Zoom out" icon={ZoomOut} onClick={handleZoomOut} />
+        <RailButton label="Reset view" icon={Maximize} onClick={handleFitScreen} />
+      </section>
+      {mode === 'DRAW_WALL' && drawingStart && <RailButton label="Cancel wall" icon={X} onClick={cancelWallDrawing} />}
+      {mode === 'DRAW_FLOOR' && <section aria-label="Floor drawing" className="rail-section">
+        <RailButton label="Rectangle" icon={Square} active={floorDrawMode === 'rectangle'} onClick={() => switchFloorDrawMode('rectangle')} />
+        <RailButton label="Polygon" icon={Pentagon} active={floorDrawMode === 'polygon'} onClick={() => switchFloorDrawMode('polygon')} />
+        {floorDrawMode === 'polygon' && <><RailButton label="Undo point" icon={Undo2} onClick={handleUndoFloorPoint} disabled={!drawingFloorPts.length} /><RailButton label="Finish" icon={Check} disabled={drawingFloorPts.length < 3} onClick={() => completeFloorPolygon(drawingFloorPts)} /></>}
+        <RailButton label="Cancel" icon={X} onClick={handleCancelDrawingFloor} />
+      </section>}
+    </MobileControlPortal>}
+    </>
   );
 }

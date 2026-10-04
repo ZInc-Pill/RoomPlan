@@ -2,22 +2,28 @@ import { useCallback, useEffect, useReducer } from 'react';
 import { documentHistory, initialHistory, type PlanDocument } from '../utils/documentHistory';
 
 import { readSavedProject } from './useProjectAutosave';
+import { MobileDragHistoryGate } from '../utils/mobileGestureOwnership';
 
 export function useDocumentHistory() {
   const [state, dispatch] = useReducer(documentHistory, undefined, () => ({ ...initialHistory(), present: readSavedProject() || initialHistory().present }));
   useEffect(() => {
     const pointers = new Set<number>();
+    const mobileDrags = new MobileDragHistoryGate();
     const down = (event: PointerEvent) => {
       if (event.button !== 0) return;
+      if (mobileDrags.down(event.pointerId, event.target instanceof Element && !!event.target.closest('[data-mobile-drag-object]'))) return;
       pointers.add(event.pointerId);
       dispatch({ type: 'begin' });
     };
     const up = (event: PointerEvent) => {
+      if (mobileDrags.end(event.pointerId)) return;
       pointers.delete(event.pointerId);
       // Commit after the editor's pointer-up handler applies its final geometry.
       queueMicrotask(() => { if (!pointers.size) dispatch({ type: 'commit' }); });
     };
-    const cancel = () => {
+    const cancel = (event: Event) => {
+      if (event instanceof PointerEvent && mobileDrags.end(event.pointerId)) return;
+      mobileDrags.clear();
       pointers.clear();
       queueMicrotask(() => dispatch({ type: 'cancel' }));
     };

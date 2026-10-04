@@ -8,6 +8,7 @@ interface MobileActionsMenuProps {
   onOpen: () => void;
   onScreenshot: () => void;
   onClear: () => void;
+  onRestore: () => void;
 }
 
 export function MobileActionsMenu({
@@ -16,16 +17,13 @@ export function MobileActionsMenu({
   onSave,
   onOpen,
   onScreenshot,
-  onClear,
+  onClear, onRestore,
 }: MobileActionsMenuProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
-      <div 
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
-        onClick={onClose}
-      />
+    <div className="mobile-panel-content">
+
 
       <div className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col w-full z-10 animate-in slide-in-from-bottom duration-300 border-t border-slate-200 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]">
         <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mt-3 mb-1" />
@@ -37,13 +35,14 @@ export function MobileActionsMenu({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center active:scale-95"
+            aria-label="Close panel" className="w-11 h-11 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center active:scale-95"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="p-4 space-y-2">
+          <button onClick={onRestore} className="w-full min-h-11 rounded-lg bg-slate-100 text-sm">Restore previous save</button>
           <button
             onClick={() => {
               onScreenshot();

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PlacedItem } from '../types';
 import type { UseFurnitureInteractionOptions } from './useFurnitureInteraction';
 import { startMobileDrag, moveMobileDrag, resolveMobileDrop, type MobileDragSession } from '../utils/mobileItemDrag';
-import type { OpeningDragPreview } from '../utils/openingDrag';
 
 export function useMobileItemDrag(options: UseFurnitureInteractionOptions & { onCommit: (items: PlacedItem[]) => void }) {
   const latest = useRef(options); latest.current = options;
@@ -10,7 +9,7 @@ export function useMobileItemDrag(options: UseFurnitureInteractionOptions & { on
   const frame = useRef<number | null>(null);
   const point = useRef({ x: 0, y: 0 });
   const capture = useRef<Element | null>(null);
-  const [visual, setVisual] = useState<{ items: PlacedItem[]; preview: OpeningDragPreview | null } | null>(null);
+  const [visual, setVisual] = useState<{ items: PlacedItem[] } | null>(null);
   const clear = useCallback(() => {
     const old = session.current;
     session.current = null;
@@ -52,10 +51,7 @@ export function useMobileItemDrag(options: UseFurnitureInteractionOptions & { on
       const s = session.current, o = latest.current;
       if (!s) return;
       const raw = moveMobileDrag(s, point.current, o.zoom);
-      if (raw) {
-        const preview = raw.length === 1 ? resolveMobileDrop(raw, o.items, o.walls, o.zoom, o.currentGridSize, true).preview : null;
-        setVisual({ items: raw, preview });
-      }
+      if (raw) setVisual({ items: raw });
     });
     return true;
   };
@@ -71,5 +67,6 @@ export function useMobileItemDrag(options: UseFurnitureInteractionOptions & { on
     clear();
     return true;
   };
-  return { down, move, up, cancel: clear, active: () => !!session.current, isDragging: (id: string) => session.current?.originals.some(item => item.id === id) ?? false, visual };
+  const cancelPointer = (id: number) => { if (session.current?.pointerId === id) clear(); };
+  return { down, move, up, cancel: clear, cancelPointer, active: () => !!session.current, isDragging: (id: string) => session.current?.originals.some(item => item.id === id) ?? false, visual };
 }

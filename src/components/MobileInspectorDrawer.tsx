@@ -3,7 +3,7 @@ import { pxToCm } from '../utils/coordinates';
 import { Wall, PlacedItem, Floor } from '../types';
 import { ITEM_CATALOG } from '../catalog';
 import { RotateCw, RotateCcw, Copy, Trash2, X, ChevronDown, ChevronUp, Sliders, Move, Magnet } from 'lucide-react';
-import { UniversalJoystick } from './UniversalJoystick';
+import { isOpening, attachNearestOpening } from '../utils/openingAttachment';
 import { MaterialPicker } from './MaterialPicker';
 
 interface MobileInspectorDrawerProps {
@@ -56,20 +56,6 @@ export function MobileInspectorDrawer({
   onDelete,
   onNudgeSelected,
 }: MobileInspectorDrawerProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const handleJoystickMove = (dx: number, dy: number) => {
-    onNudgeSelected?.(dx, dy);
-  };
-
-  const handleSingleNudge = (dir: 'up' | 'down' | 'left' | 'right') => {
-    if (!onNudgeSelected) return;
-    const step = glideSnapMode === 'snap' ? gridSize : 4;
-    if (dir === 'left') onNudgeSelected(-step, 0);
-    else if (dir === 'right') onNudgeSelected(step, 0);
-    else if (dir === 'up') onNudgeSelected(0, -step);
-    else if (dir === 'down') onNudgeSelected(0, step);
-  };
-
   if (!isOpen) return null;
 
   const selectedItem = selectedItemIds.length === 1 ? items.find(i => i.id === selectedItemIds[0]) : null;
@@ -100,123 +86,18 @@ export function MobileInspectorDrawer({
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 md:hidden pointer-events-none pb-[calc(5rem+env(safe-area-inset-bottom,0px))]">
-      <div className="mx-3 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-2xl border border-slate-200/80 pointer-events-auto overflow-hidden animate-in slide-in-from-bottom duration-200">
-        {/* Header & Quick Action Row */}
-        <div className="p-3 flex flex-wrap gap-2 items-center justify-between border-b border-slate-100">
-          <div className="w-full min-w-0 pr-2">
-            <h3 className="text-sm font-bold text-slate-900 truncate">{title}</h3>
-            {subtitle && <p className="text-[11px] text-slate-500 font-medium truncate">{subtitle}</p>}
-          </div>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            {(selectedItem || selectedWall) && (
-              <div className="flex items-center bg-slate-100 rounded-xl p-0.5">
-                <button
-                  onClick={() => onRotate(-Math.PI / 4)}
-                  className="w-11 h-11 rounded-lg hover:bg-slate-200 text-slate-700 flex items-center justify-center active:scale-95 transition-all"
-                  title="Rotate -45°"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 text-indigo-600" />
-                </button>
-                <div className="w-px h-4 bg-slate-200 mx-0.5" />
-                <button
-                  onClick={() => onRotate(Math.PI / 4)}
-                  className="w-11 h-11 rounded-lg hover:bg-slate-200 text-slate-700 flex items-center justify-center active:scale-95 transition-all"
-                  title="Rotate +45°"
-                >
-                  <RotateCw className="w-3.5 h-3.5 text-indigo-600" />
-                </button>
-              </div>
-            )}
-
-            <button
-              onClick={onDuplicate}
-              className="w-11 h-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center active:scale-95 transition-all"
-              title="Duplicate"
-            >
-              <Copy className="w-4 h-4 text-emerald-600" />
-            </button>
-
-            <button
-              onClick={onDelete}
-              className="w-11 h-11 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center active:scale-95 transition-all"
-              title="Delete"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="w-11 h-11 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center active:scale-95"
-              title={isExpanded ? "Collapse properties" : "Expand properties"} aria-expanded={isExpanded}
-            >
-              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <Sliders className="w-4 h-4" />}
-            </button>
-
-            <button
-              onClick={onClose}
-              className="w-11 h-11 rounded-full text-slate-400 hover:text-slate-600 flex items-center justify-center"
-              title="Close properties" aria-label="Close properties"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+    <div className="mobile-panel-content">
+      <div className="bg-white flex flex-col h-full min-h-0">
+        <div className="p-3 flex items-center justify-between border-b shrink-0">
+          <div><h3 className="font-semibold">Properties: {title}</h3><p className="text-xs text-slate-500">{subtitle}</p></div>
+          <button onClick={onClose} aria-label="Collapse properties" className="min-w-11 min-h-11"><X size={20} /></button>
         </div>
-
-        {/* Expandable Properties Drawer */}
-        {isExpanded && (
-          <div className="p-4 max-h-[45dvh] overflow-y-auto overscroll-contain space-y-4 animate-in fade-in duration-150">
-            {/* Fine Position Glide via Universal Joystick */}
-            {onNudgeSelected && (
-              <div className="flex flex-col gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-xs font-bold text-slate-800 block">Position Glide</span>
-                    <span className="text-[11px] text-slate-500 block">
-                      {selectedItem?.wallId ? 'Along wall: left/up toward start; right/down toward end' : glideSnapMode === 'snap' ? `Moves in ${pxToCm(gridSize)} cm steps` : 'Continuous free movement'}
-                    </span>
-                  </div>
-                  <UniversalJoystick key={[glideSnapMode, gridSize, ...selectedItemIds, selectedWallId, selectedFloorId].join(':')} snapRepeat={glideSnapMode === 'snap'}
-                    onMove={handleJoystickMove}
-                    onSingleNudge={handleSingleNudge}
-                    variant="compact"
-                    theme="light"
-                    label="Glide"
-                  />
-                </div>
-
-                {/* Two Options: Snap on Grid (Primary) & Free Move (Secondary) */}
-                <div className="flex items-center justify-end bg-slate-200/80 p-0.5 rounded-xl border border-slate-300/70 shadow-xs self-end">
-                  <button
-                    type="button"
-                    onClick={() => setGlideSnapMode('snap')}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                      glideSnapMode === 'snap'
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title={`Move in ${pxToCm(gridSize)} cm steps`}
-                  >
-                    <Magnet className="w-2.5 h-2.5" />
-                    <span>Snap on Grid</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setGlideSnapMode('free')}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                      glideSnapMode === 'free'
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Free Move (Secondary) - continuous smooth movement"
-                  >
-                    <Move className="w-2.5 h-2.5" />
-                    <span>Free Move</span>
-                  </button>
-                </div>
-              </div>
-            )}
+        {true && (
+          <div className="p-4 overflow-y-auto min-h-0 overscroll-contain space-y-4">
+            {selectedItem && isOpening(selectedItem) && <button className="border rounded-lg px-3 text-sm" onClick={() => {
+              if (selectedItem.wallId) onUpdateItem(selectedItem.id, { wallId: undefined, wallOffset: undefined });
+              else { const attached = attachNearestOpening(selectedItem, walls); if (attached) onUpdateItem(selectedItem.id, attached); }
+            }}>{selectedItem.wallId ? 'Detach from wall' : 'Attach to nearest wall'}</button>}
             {selectedItem && (
               <>
                 <div className="space-y-1.5">
@@ -225,7 +106,7 @@ export function MobileInspectorDrawer({
                     <span className="text-indigo-600">{Math.round(Number.isFinite(selectedItem.width) ? selectedItem.width! : (itemType?.width ?? 90))} cm</span>
                   </div>
                   <input
-                    type="range"
+                    type="range" aria-label="Width in centimeters"
                     min="30"
                     max="400"
                     step="5"
@@ -244,7 +125,7 @@ export function MobileInspectorDrawer({
                     <span className="text-indigo-600">{Math.round(Number.isFinite(selectedItem.depth) ? selectedItem.depth! : (itemType?.depth ?? 60))} cm</span>
                   </div>
                   <input
-                    type="range"
+                    type="range" aria-label="Depth in centimeters"
                     min="30"
                     max="400"
                     step="5"
@@ -257,26 +138,8 @@ export function MobileInspectorDrawer({
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold text-slate-700">
-                    <span>Rotation</span>
-                    <span className="text-indigo-600">
-                      {Math.round(((Number.isFinite(selectedItem.rotation) ? selectedItem.rotation : 0) * 180) / Math.PI) % 360}°
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2 pt-1">
-                    {[0, 90, 180, 270].map(deg => (
-                      <button
-                        key={deg}
-                        onClick={() => onUpdateItem(selectedItem.id, { rotation: (deg * Math.PI) / 180 })}
-                        className="py-1.5 px-2 text-xs font-bold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg border border-slate-200 active:scale-95 transition-all"
-                      >
-                        {deg}°
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
+                <label className="block text-xs font-semibold">Elevation (cm)<input aria-label="Elevation in centimeters" type="number" min="0" step="5" value={selectedItem.elevation ?? 0} onChange={e => onUpdateItem(selectedItem.id, { elevation: Math.max(0, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>
+                <label className="block text-xs font-semibold">Height (cm)<input aria-label="Height in centimeters" type="number" min="1" value={selectedItem.height ?? itemType?.height ?? 100} onChange={e => onUpdateItem(selectedItem.id, { height: Math.max(1, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>
                 {/* Item Material & Finish */}
                 <div className="pt-2 border-t border-slate-100">
                   <MaterialPicker
@@ -304,7 +167,7 @@ export function MobileInspectorDrawer({
                     <span className="text-indigo-600">{Math.round(Number.isFinite(selectedWall.thickness) ? selectedWall.thickness : 8)} cm</span>
                   </div>
                   <input
-                    type="range"
+                    type="range" aria-label="Wall thickness in centimeters"
                     min="5"
                     max="40"
                     step="1"
