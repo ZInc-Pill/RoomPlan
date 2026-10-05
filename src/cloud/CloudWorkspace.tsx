@@ -13,13 +13,17 @@ import {
   saveChanges,
   updateProject,
   validateProject,
+  openGuest,
+  saveGuest,
   type Project,
   type ProjectCard,
   type Role,
 } from "./api";
 import { ProjectSync } from "./ProjectSync";
+import { same } from "./patches";
 import { readSavedProject } from "../hooks/useProjectAutosave";
 import "./cloud.css";
+import { CollaborationLoop, guestToken, guestHref, safePeers, cursorColor, type Collaborator, type CollaboratorCursor } from "./collaboration";
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const href = (key: string, value: string) =>
   `${location.origin}${location.pathname}?${key}=${encodeURIComponent(value)}`;
@@ -50,6 +54,8 @@ export default function CloudWorkspace() {
     });
     return () => { active = false; data.subscription.unsubscribe(); };
   }, []);
+  const token = guestToken(location.href);
+  if (token) return <GuestLoader key={token} token={token} />;
   if (params.has("local"))
     return (
       <div className="cloud-editor">
@@ -410,29 +416,48 @@ function ProjectLoader({ id, user }: { id: string; user: User }) {
     <CloudEditor project={loaded.project} role={loaded.role} user={user} />
   );
 }
+function GuestLoader({ token }: { token: string }) {
+  const [loaded, setLoaded] = useState<Awaited<ReturnType<typeof openGuest>> | null>(null), [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    void openGuest(token).then(p => { if (active) setLoaded(p); }).catch(e => { if (active) setError(message(e)); });
+    return () => { active = false; };
+  }, [token]);
+  if (!loaded) return <main className="cloud-page"><h1>Shared room plan</h1><p role={error ? "alert" : "status"}>{error || "Opening shared project…"}</p><button onClick={() => go()}>Open RoomPlan</button></main>;
+  return <CloudEditor project={loaded.project} role={loaded.role} guest={token} expiresAt={loaded.expiresAt} />;
+}
 function CloudEditor({
   project,
   role,
   user,
+  guest,
+  expiresAt,
 }: {
   project: Project;
   role: Role;
-  user: User;
+  user?: User;
+  guest?: string;
+  expiresAt?: string | null;
 }) {
   const [, render] = useState(0),
     [sharing, setSharing] = useState(false),
     [blocked, setBlocked] = useState(false),
-    [recovery, setRecovery] = useState(false);
+    [recovery, setRecovery] = useState(false),
+    [accessEnded, setAccessEnded] = useState(false),
+    [peers, setPeers] = useState<Collaborator[]>([]);
+  const presence = useRef<CollaborationLoop | null>(null);
+  const session = useRef(crypto.randomUUID());
   const syncRef = useRef<ProjectSync | null>(null);
   if (!syncRef.current)
     syncRef.current = new ProjectSync(
       project,
       role,
-      { save: saveChanges, load: loadProject },
+      { save: (id, changes) => guest ? saveGuest(guest, changes) : saveChanges(id, changes), load: id => guest ? openGuest(guest).then(p => p.project) : loadProject(id) },
       () => render((n) => n + 1),
     );
   const sync = syncRef.current,
-    key = `roomplan.recovery.${user.id}.${project.id}`;
+    key = `roomplan.recovery.${user?.id ?? "guest"}.${project.id}.${guest ? guest.slice(0, 24) : "member"}`;
+  const onCursor = useCallback((cursor: CollaboratorCursor | null) => presence.current?.point(cursor), []);
   const onDocument = useCallback(
     (doc: any, editing: boolean) => {
       sync.changed(doc, editing);
@@ -446,6 +471,7 @@ function CloudEditor({
     } catch {}
     const pointers = new Set<number>();
     const down = (e: PointerEvent) => {
+      if (sync.role === "viewer") return;
       pointers.add(e.pointerId);
       sync.setEditing(true);
     };
@@ -472,18 +498,22 @@ function CloudEditor({
     window.addEventListener("beforeunload", unload);
     const refresh = async () => {
       try {
-        const p = await loadProject(project.id);
-        const r = await projectRole(p, user.id);
+        const loaded = guest ? await openGuest(guest) : null;
+        const p = loaded?.project ?? await loadProject(project.id);
+        const r = loaded?.role ?? await projectRole(p, user!.id);
+        if (sync.disposed) return;
         sync.role = r;
         setBlocked(p.archived);
         sync.receive(p);
         render((n) => n + 1);
       } catch (e) {
+        if (sync.disposed) return;
         setBlocked(true);
+        if ((e as any).code === "42501" || (e as any).code === "PGRST116") setAccessEnded(true);
         sync.fail(e, true);
       }
     };
-    const channel = requireCloud()
+    const channel = guest ? null : requireCloud()
       .channel(`project:${project.id}`)
       .on(
         "postgres_changes",
@@ -505,11 +535,40 @@ function CloudEditor({
       .subscribe((status) => {
         if (status === "SUBSCRIBED") void refresh();
       });
-    const interval = setInterval(() => void refresh(), 15000);
+    const loop = new CollaborationLoop(async cursor => {
+      try {
+        const result = check(await requireCloud().rpc("rp_collaborate", { p_project: project.id, p_session: session.current, p_revision: sync.base.revision, p_cursor: cursor, p_token: guest ?? null }));
+        if (sync.disposed) return;
+        const statusChanged = sync.role !== result.role || (!sync.conflict && !!sync.error);
+        sync.role = result.role;
+        if (!sync.conflict) sync.error = "";
+        setBlocked(false);
+        const nextPeers = safePeers(result.peers);
+        setPeers(previous => same(previous, nextPeers) ? previous : nextPeers);
+        if (result.project) sync.receive(validateProject(result.project));
+        if (statusChanged) render(n => n + 1);
+      } catch (e) {
+        if (sync.disposed) return;
+        if (["42501", "PGRST116"].includes((e as any).code)) { setAccessEnded(true); setBlocked(true); loop.stop(); }
+        else if ((e as any).code === "PGRST202") { loop.stop(); void refresh(); }
+        else { setBlocked(true); sync.fail(e); }
+      }
+    });
+    presence.current = loop;
+    loop.wake();
+    const visible = () => { if (!document.hidden) { loop.point(null); void refresh(); } };
+    document.addEventListener("visibilitychange", visible);
+    window.addEventListener("focus", visible);
+    // Polling covers websocket disconnects and access revocation; cursor updates batch revision checks.
+    const interval = setInterval(() => { if (!document.hidden) void refresh(); }, 5000);
     return () => {
       sync.dispose();
       clearInterval(interval);
-      void requireCloud().removeChannel(channel);
+      loop.stop();
+      presence.current = null;
+      document.removeEventListener("visibilitychange", visible);
+      window.removeEventListener("focus", visible);
+      if (channel) void requireCloud().removeChannel(channel);
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("pointerup", up, true);
       window.removeEventListener("pointercancel", up, true);
@@ -526,6 +585,15 @@ function CloudEditor({
         );
     } catch {}
   });
+  useEffect(() => {
+    if (!guest || !expiresAt) return;
+    const deadline = Date.parse(expiresAt);
+    const checkExpiry = () => { if (Date.now() >= deadline) { setAccessEnded(true); setBlocked(true); presence.current?.stop(); } };
+    checkExpiry();
+    const interval = setInterval(checkExpiry, 500);
+    return () => clearInterval(interval);
+  }, [guest, expiresAt]);
+  if (accessEnded) return <main className="cloud-page"><h1>Access ended</h1><p>This link has expired, was revoked, or you no longer have access. Ask the owner for a new link.</p>{sync.dirty && <button onClick={() => downloadDocument(sync.draft, project.title)}>Download unsaved work</button>}<button onClick={() => go()}>Open RoomPlan</button></main>;
   return (
     <div className="cloud-editor">
       <header className="cloud-bar">
@@ -543,6 +611,7 @@ function CloudEditor({
           Projects
         </button>
         <strong>{sync.base.title}</strong>
+        {guest && <small>Guest · {sync.role === "viewer" ? "Can view" : "Can edit"}{expiresAt ? ` · Ends ${new Date(expiresAt).toLocaleString()}` : " · No expiry"}</small>}
         <span>
           {sync.role === "viewer"
             ? "View only"
@@ -557,6 +626,7 @@ function CloudEditor({
           <button onClick={() => setSharing(true)}>Share</button>
         )}
       </header>
+      {peers.length > 0 && <div className="collaboration-people" aria-label={`${peers.length} other people in this project`}>{peers.slice(0,4).map(p => <span key={p.id} className="collaboration-person" style={{color:cursorColor(p.id)}}>{p.name}</span>)}{peers.length>4 && <small>+{peers.length-4} more</small>}</div>}
       {recovery && (
         <div className="cloud-error">
           A recovery copy exists on this device.
@@ -583,7 +653,7 @@ function CloudEditor({
         <div role="alert" className="cloud-error">
           {sync.error}
           <button onClick={() => void sync.retry()}>Retry</button>
-          <button
+          {!guest && <button
             onClick={async () => {
               try {
                 go(
@@ -596,7 +666,7 @@ function CloudEditor({
             }}
           >
             Save my work as a copy
-          </button>
+          </button>}
         </div>
       )}
       <div className="cloud-canvas">
@@ -607,6 +677,8 @@ function CloudEditor({
           readOnly={sync.role === "viewer" || blocked || project.archived}
           cloudStatus={sync.status}
           onDocument={onDocument}
+          collaborators={peers}
+          onCursor={onCursor}
         />
       </div>
       {sharing && (
@@ -615,7 +687,7 @@ function CloudEditor({
     </div>
   );
 }
-function SharePanel({
+export function SharePanel({
   project,
   close,
 }: {
@@ -631,7 +703,9 @@ function SharePanel({
     [link, setLink] = useState(""),
     [busy, setBusy] = useState(false),
     [delivery, setDelivery] = useState("");
+  const [duration, setDuration] = useState("24h"), [links, setLinks] = useState<any[]>([]);
   const refresh = async () => {
+    setLinks(check(await requireCloud().from("rp_guest_links").select("*").eq("project_id", project.id).order("created_at", { ascending: false })));
     setMembers(
       check(
         await requireCloud()
@@ -805,9 +879,11 @@ function SharePanel({
       ))}
       <h3>Anyone with a link</h3>
       <p>
-        Requires sign-in. Links expire in seven days. Revoking a link prevents
-        new joins; remove existing members above.
+        No registration required. Anyone with this link gets its permission until it expires or you revoke it. An editor link allows changes to your plan.
       </p>
+      <label>Link duration<select value={duration} onChange={e => setDuration(e.target.value)}>
+        <option value="1h">1 hour</option><option value="24h">24 hours</option><option value="7d">7 days</option><option value="unlimited">Unlimited</option>
+      </select></label>
       <div className="cloud-actions">
         {["viewer", "editor"].map((r) => (
           <button
@@ -815,36 +891,31 @@ function SharePanel({
             disabled={busy}
             onClick={() =>
               void run(async () => {
-                const token = check(
-                  await requireCloud().rpc("rp_share_link", {
+                const created = check(
+                  await requireCloud().rpc("rp_create_guest_link", {
                     p_project: project.id,
                     p_role: r,
+                    p_duration: duration,
                   }),
                 );
-                setLink(href("share", token));
+                setLink(guestHref(created.token));
               })
             }
           >
-            New {r} link
+            Create {r} link
           </button>
         ))}
-        <button
-          disabled={busy}
-          onClick={() =>
-            void run(async () => {
-              check(
-                await requireCloud().rpc("rp_share_link", {
-                  p_project: project.id,
-                  p_role: null,
-                }),
-              );
-              setLink("");
-            })
-          }
-        >
-          Disable link
-        </button>
       </div>
+      {links.map(l => {
+        const inactive = l.revoked_at || (l.expires_at && Date.parse(l.expires_at) <= Date.now());
+        return <div className="cloud-member" key={l.token}>
+          <span>{l.role === 'editor' ? 'Can edit' : 'Can view'} · {l.revoked_at ? 'Revoked' : inactive ? 'Expired' : l.expires_at ? `Ends ${new Date(l.expires_at).toLocaleString()}` : 'Unlimited'}</span>
+          {!inactive && <><button onClick={() => setLink(guestHref(l.token))}>Get link</button><button disabled={busy} onClick={() => void run(async () => {
+            check(await requireCloud().rpc('rp_revoke_guest_link', { p_token: l.token }));
+            if (link === guestHref(l.token)) setLink('');
+          })}>Revoke link</button></>}
+        </div>;
+      })}
       {error && <p role="alert">{error}</p>}
     </dialog>
   );

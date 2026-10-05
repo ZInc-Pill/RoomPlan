@@ -5,6 +5,11 @@
   padding: clamp(20px, 5vw, 64px);
   font-family: Inter, system-ui, sans-serif;
 }
+.collaborator-pointers { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 19; }
+.collaborator-pointer { position: absolute; top: 0; left: 0; transition: transform 180ms linear; will-change: transform; display: flex; align-items: flex-start; }
+.collaborator-pointer span { color: white; font: 11px system-ui; border-radius: 4px; padding: 3px 6px; margin-top: 18px; white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.collaboration-people { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font: 12px system-ui; }
+.collaboration-person { border-radius: 99px; padding: 4px 8px; background: #f4f1f9; }
 .cloud-brand {
   font-size: 22px;
   font-weight: 700;

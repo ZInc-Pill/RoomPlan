@@ -33,10 +33,14 @@ import { useFloorInteraction } from '../hooks/useFloorInteraction';
 import { SvgFloorPatterns } from './SvgFloorPatterns';
 import { FLOOR_MATERIALS } from '../materials';
 import { isInteractiveElement } from '../utils/input';
+import { CollaboratorPointers } from '../cloud/CollaboratorPointers';
+import type { Collaborator, CollaboratorCursor } from '../cloud/collaboration';
 
 type RulerMeasurement = { id: string; start: Point; end: Point; createdAt: number };
 
 interface Canvas2DProps {
+  collaborators?: Collaborator[];
+  onCursor?: (cursor: CollaboratorCursor | null) => void;
   isMobile?: boolean;
   dragSnapMode: 'snap' | 'free';
   setDragSnapMode: (mode: 'snap' | 'free') => void;
@@ -68,7 +72,7 @@ export function Canvas2D({
   dragSnapMode, setDragSnapMode,
   walls, floors, items, comments, mode, selectedItemIds, selectedWallId, selectedFloorId, selectedCommentId, 
   onUpdateWalls, onUpdateFloors, onUpdateItems, onCommitMobileItems, onUpdateComments, onSelect, setMode, onDuplicateFloor, onDeleteFloor,
-  gridOption, setGridOption, isDrawerOpen = false
+  gridOption, setGridOption, isDrawerOpen = false, collaborators = [], onCursor
 }: Canvas2DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mobileOwnership = useRef(new MobileGestureOwnership());
@@ -516,9 +520,14 @@ export function Canvas2D({
         }
       }}
       onPointerDown={handlePointerDown}
+      onPointerMoveCapture={e => {
+        if (isDrawerOpen || (e.target instanceof Element && e.target.closest('button,input,textarea,select,[data-editor-control]'))) { onCursor?.(null); return; }
+        const point = getPoint(e);
+        onCursor?.({ ...point, view: '2d' });
+      }}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={(e) => { if (!isMobile && !e.buttons) handlePointerUp(e); }}
+      onPointerLeave={(e) => { onCursor?.(null); if (!isMobile && !e.buttons) handlePointerUp(e); }}
       onPointerCancel={e => {
         if (isMobile) {
           const ownership = mobileOwnership.current;
@@ -537,6 +546,7 @@ export function Canvas2D({
       }}
       onDoubleClick={handleDoubleClick}
     >
+      <CollaboratorPointers peers={collaborators} position={p => p.cursor?.view === '2d' ? { x: p.cursor.x * zoom + pan.x, y: p.cursor.y * zoom + pan.y } : null} />
       <div 
         id="grid-bg"
         className="absolute inset-0 pointer-events-none"

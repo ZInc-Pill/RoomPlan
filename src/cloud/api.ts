@@ -14,7 +14,7 @@ export type Project = {
 };
 export type ProjectCard = Omit<Project, "document">;
 export function check<T>({ data, error }: { data: T; error: any }): T {
-  if (error) throw new Error(error.message);
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
   return data;
 }
 export const validateProject = (p: any): Project => ({
@@ -56,6 +56,13 @@ export async function saveChanges(id: string, changes: Change[]) {
       }),
     ),
   );
+}
+export async function openGuest(token: string) {
+  const result = check(await requireCloud().rpc("rp_open_guest_link", { p_token: token }));
+  return { project: validateProject(result.project), role: result.role as Role, expiresAt: result.expires_at as string | null };
+}
+export async function saveGuest(token: string, changes: Change[]) {
+  return validateProject(check(await requireCloud().rpc("rp_guest_save", { p_token: token, p_changes: changes })));
 }
 export async function createProject(
   title: string,

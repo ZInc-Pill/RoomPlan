@@ -6,7 +6,10 @@ import { MobileDragHistoryGate } from '../utils/mobileGestureOwnership';
 
 export function useDocumentHistory(initial?: PlanDocument, external?: PlanDocument, readOnly = false) {
   const [state, dispatch] = useReducer(documentHistory, undefined, () => ({ ...initialHistory(), present: initial ?? readSavedProject() ?? initialHistory().present }));
+  useEffect(() => { if (readOnly) dispatch({ type: 'cancel' }); }, [readOnly]);
   useEffect(() => {
+    // View navigation must not start document transactions or defer remote comments.
+    if (readOnly) return;
     const pointers = new Set<number>();
     const mobileDrags = new MobileDragHistoryGate();
     const down = (event: PointerEvent) => {
@@ -37,7 +40,7 @@ export function useDocumentHistory(initial?: PlanDocument, external?: PlanDocume
       window.removeEventListener('pointercancel', cancel, true);
       window.removeEventListener('blur', cancel);
     };
-  }, []);
+  }, [readOnly]);
   const appliedExternal = useRef(external);
   useEffect(() => { if (external && external !== appliedExternal.current && !state.start) { appliedExternal.current = external; dispatch({ type: 'remote', document: external }); } }, [external, Boolean(state.start)]);
   const update = useCallback((change: (document: PlanDocument) => PlanDocument, exactPlacement = false) => { if (!readOnly) dispatch({ type: 'update', update: change, exactPlacement }); }, [readOnly]);

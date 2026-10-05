@@ -1,0 +1,82 @@
+import { PGlite } from '@electric-sql/pglite';
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const db = new PGlite();
+await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth to authenticated;grant execute on function auth.uid() to authenticated;`);
+for (const file of ['202610040001_roomplan_cloud.sql','202610050001_guest_collaboration.sql']) await db.exec(readFileSync(`supabase/migrations/${file}`, 'utf8'));
+const owner = '00000000-0000-0000-0000-000000000001', stranger = '00000000-0000-0000-0000-000000000002';
+await db.query('insert into auth.users values($1,$2,now()),($3,$4,now())', [owner,'owner@example.com',stranger,'stranger@example.com']);
+async function as(id?: string) {
+  await db.exec('reset role');
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id ?? '']);
+  await db.exec(`set role ${id ? 'authenticated' : 'anon'}`);
+}
+async function rpc(name: string, args: unknown[]) {
+  return (await db.query<any>(`select to_jsonb(public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')})) as result`,args)).rows[0].result;
+}
+await as(owner);
+const id = await rpc('rp_create_project',['Guest test']);
+const other = await rpc('rp_create_project',['Other project']);
+const links: any[] = [];
+for (const duration of ['1h','24h','7d','unlimited']) {
+  const link = await rpc('rp_create_guest_link',[id,'editor',duration]);
+  links.push(link);
+  if (duration === 'unlimited') assert.equal(link.expires_at,null);
+  else assert.ok(Math.abs(Date.parse(link.expires_at)-Date.now()-({'1h':3600000,'24h':86400000,'7d':604800000}[duration]!))<5000);
+}
+const view = await rpc('rp_create_guest_link',[id,'viewer','24h']);
+await assert.rejects(()=>rpc('rp_create_guest_link',[id,'owner','24h']));
+await assert.rejects(()=>rpc('rp_create_guest_link',[id,'viewer','2h']));
+await as(stranger);
+await assert.rejects(()=>rpc('rp_create_guest_link',[id,'editor','unlimited']));
+await assert.rejects(()=>rpc('rp_revoke_guest_link',[view.token]));
+await as();
+const opened = await rpc('rp_open_guest_link',[view.token]);
+assert.equal(opened.role,'viewer'); assert.equal(opened.project.id,id);
+await assert.rejects(()=>db.query('select * from rp_projects'));
+await assert.rejects(()=>db.query('select * from rp_guest_links'));
+await assert.rejects(()=>db.query('select * from rp_presence'));
+await assert.rejects(()=>rpc('rp_save_changes',[id,'[]']));
+await assert.rejects(()=>rpc('rp_guest_save',[view.token,'[]']));
+await assert.rejects(()=>rpc('rp_open_guest_link',['wrong-token']));
+const a='10000000-0000-0000-0000-000000000001',b='10000000-0000-0000-0000-000000000002';
+await assert.rejects(()=>rpc('rp_collaborate',[other,a,0,null,view.token]));
+await assert.rejects(()=>rpc('rp_collaborate',[id,a,0,null,null]));
+await rpc('rp_collaborate',[id,a,0,JSON.stringify({x:12,y:34,view:'2d'}),view.token]);
+const presence = await rpc('rp_collaborate',[id,b,0,null,links[0].token]);
+assert.equal(presence.project,null); assert.equal(presence.peers.length,1);
+assert.deepEqual(presence.peers[0].cursor,{x:12,y:34,view:'2d'});
+assert.ok(!JSON.stringify(presence.peers).includes(view.token));
+assert.ok(!JSON.stringify(presence.peers).includes(a));
+await assert.rejects(()=>rpc('rp_collaborate',[id,a,0,JSON.stringify({x:'bad',y:0,view:'2d'}),view.token]));
+const change={collection:'comments',id:'comment',before:null,after:{id:'comment',x:0,y:0,text:'Live comment'}};
+const saved = await rpc('rp_guest_save',[links[0].token,JSON.stringify([change])]);
+assert.equal(saved.revision,1);
+assert.equal((await rpc('rp_guest_save',[links[0].token,JSON.stringify([change])])).revision,1);
+await assert.rejects(()=>rpc('rp_guest_save',[links[0].token,JSON.stringify([{...change,after:{...change.after,text:'conflict'}}])]));
+const instant = await rpc('rp_collaborate',[id,a,0,null,view.token]);
+assert.equal(instant.project.document.comments[0].text,'Live comment');
+assert.equal((await rpc('rp_collaborate',[id,a,1,null,view.token])).project,null);
+await as(owner);
+assert.equal((await db.query('select * from rp_members')).rows.length,0);
+await rpc('rp_revoke_guest_link',[view.token]);
+await as();
+await assert.rejects(()=>rpc('rp_open_guest_link',[view.token]));
+await assert.rejects(()=>rpc('rp_collaborate',[id,a,0,null,view.token]));
+assert.equal((await rpc('rp_collaborate',[id,b,1,null,links[0].token])).peers.length,0);
+for (const link of links.filter(l=>l.expires_at)) {
+  await db.exec('reset role');
+  await db.query("update rp_guest_links set expires_at=now()-interval '1 second' where token=$1",[link.token]);
+  await as();
+  await assert.rejects(()=>rpc('rp_open_guest_link',[link.token]));
+  await assert.rejects(()=>rpc('rp_guest_save',[link.token,'[]']));
+  await assert.rejects(()=>rpc('rp_collaborate',[id,b,1,null,link.token]));
+}
+assert.equal((await rpc('rp_open_guest_link',[links[3].token])).role,'editor');
+await as(owner);
+await rpc('rp_update_project',[id,'Archived',true]);
+await as();
+await assert.rejects(()=>rpc('rp_open_guest_link',[links[3].token]));
+await assert.rejects(()=>rpc('rp_guest_save',[links[3].token,'[]']));
+await db.close();
+console.log('Guest links: roles, four durations, expiry, revocation, RLS, live comments, cursor privacy and atomic edits passed');

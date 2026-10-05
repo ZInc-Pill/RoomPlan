@@ -30,9 +30,11 @@ import { attachNearestOpening, isOpening, nudgeOpeningAlongWall } from './utils/
 import { updateConnectedWall } from './utils/wallConnections';
 import { getGridSize } from './utils/coordinates';
 import { emptyDocument, type PlanDocument } from './utils/documentHistory';
+import type { Collaborator, CollaboratorCursor } from './cloud/collaboration';
+import { CollaboratorPointers } from './cloud/CollaboratorPointers';
 
-export type EditorCloudProps = { initial?: PlanDocument; external?: PlanDocument; readOnly?: boolean; embedded?: boolean; cloudStatus?: string; onDocument?: (document:PlanDocument, editing:boolean)=>void };
-export default function App({ initial, external, readOnly = false, embedded = false, cloudStatus, onDocument }: EditorCloudProps = {}) {
+export type EditorCloudProps = { collaborators?: Collaborator[]; onCursor?: (cursor: CollaboratorCursor | null) => void; initial?: PlanDocument; external?: PlanDocument; readOnly?: boolean; embedded?: boolean; cloudStatus?: string; onDocument?: (document:PlanDocument, editing:boolean)=>void };
+export default function App({ collaborators = [], onCursor, initial, external, readOnly = false, embedded = false, cloudStatus, onDocument }: EditorCloudProps = {}) {
   const { state: documentState, update: updateDocument, undo: handleUndo, redo: handleRedo } = useDocumentHistory(initial, external, readOnly);
   const { walls, floors, items, comments } = documentState.present;
   const localSaveStatus = useProjectAutosave(documentState.present, Boolean(documentState.start), !initial);
@@ -46,6 +48,7 @@ export default function App({ initial, external, readOnly = false, embedded = fa
   const [mobile2DSnapMode, setMobile2DSnapMode] = useState<'snap' | 'free'>('free');
   const [mode, setMode] = useState<AppMode>('SELECT');
   const [view3D, setView3D] = useState(false);
+  useEffect(() => { onCursor?.(null); }, [view3D, onCursor]);
   const [railHost, setRailHost] = useState<HTMLDivElement | null>(null);
   const [glideHost, setGlideHost] = useState<HTMLDivElement | null>(null);
   const [panelHost, setPanelHost] = useState<HTMLDivElement | null>(null);
@@ -728,7 +731,14 @@ export default function App({ initial, external, readOnly = false, embedded = fa
             </div>)}
             {projectError && <div role="alert" className="text-rose-700 max-w-xs">{projectError}<button className="ml-2 underline min-h-8" onClick={() => setProjectError(null)}>Dismiss</button></div>}
           </div>
-          <div className="relative h-full min-h-0 min-w-0 flex-1" data-scene>
+          <div className="relative h-full min-h-0 min-w-0 flex-1" data-scene
+            onPointerMoveCapture={e => {
+              if (!view3D || !onCursor) return;
+              if (activePanel || (e.target instanceof Element && e.target.closest('button,input,textarea,select,[data-editor-control]'))) { onCursor(null); return; }
+              const rect = e.currentTarget.getBoundingClientRect();
+              onCursor({ view: '3d', x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height });
+            }} onPointerLeave={() => { if (view3D) onCursor?.(null); }}>
+          {view3D && <CollaboratorPointers peers={collaborators} position={p => p.cursor?.view === '3d' ? { x: p.cursor.x * (mainRef.current?.querySelector('[data-scene]')?.clientWidth ?? 0), y: p.cursor.y * (mainRef.current?.querySelector('[data-scene]')?.clientHeight ?? 0) } : null} />}
           {view3D ? (
             <PreviewBoundary onReturn={() => setView3D(false)}>
             <Suspense fallback={<div role="status" className="p-6 text-slate-600">Loading 3D preview…</div>}>
@@ -766,7 +776,7 @@ export default function App({ initial, external, readOnly = false, embedded = fa
             </Suspense>
             </PreviewBoundary>
           ) : (
-            <Canvas2D isMobile={isMobile} dragSnapMode={isMobile ? mobile2DSnapMode : dragSnapMode} setDragSnapMode={isMobile ? setMobile2DSnapMode : setDragSnapMode} gridOption={gridOption} setGridOption={setGridOption}
+            <Canvas2D collaborators={collaborators} onCursor={onCursor} isMobile={isMobile} dragSnapMode={isMobile ? mobile2DSnapMode : dragSnapMode} setDragSnapMode={isMobile ? setMobile2DSnapMode : setDragSnapMode} gridOption={gridOption} setGridOption={setGridOption}
               walls={walls}
               floors={floors}
               items={items}

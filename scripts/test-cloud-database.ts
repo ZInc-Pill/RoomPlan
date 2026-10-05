@@ -8,6 +8,7 @@ await db.exec(
 await db.exec(
   readFileSync("supabase/migrations/202610040001_roomplan_cloud.sql", "utf8"),
 );
+await db.exec(readFileSync("supabase/migrations/202610050001_guest_collaboration.sql", "utf8"));
 const owner = "00000000-0000-0000-0000-000000000001",
   editor = "00000000-0000-0000-0000-000000000002",
   viewer = "00000000-0000-0000-0000-000000000003",
