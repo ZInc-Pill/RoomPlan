@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { createAuthInitializer } from "./auth";
 
 const env = (import.meta as any).env;
 export const cloudConfigured = Boolean(
@@ -14,6 +15,9 @@ export const supabase = cloudConfigured
         detectSessionInUrl: true,
       },
     })
+  : null;
+export const initializeCloudAuth = supabase
+  ? createAuthInitializer(supabase, location.href, url => history.replaceState(history.state, "", url))
   : null;
 export const requireCloud = () => {
   if (!supabase) throw new Error("Cloud accounts are not configured yet.");

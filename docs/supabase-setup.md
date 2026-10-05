@@ -10,7 +10,7 @@ Public browser configuration is in netlify.toml. No service-role key or mail-pro
 
 1. Run supabase/migrations/202610040001_roomplan_cloud.sql once. The owner reported this completed successfully. Anonymous REST reads were verified denied, and email sign-in and email confirmation were verified enabled.
 2. In Supabase Authentication > URL Configuration, set Site URL to https://roomplan.online. Add https://roomplan.online/** to Redirect URLs to allow the current project/invitation query routes. Keep http://127.0.0.1:3001/** and http://localhost:3001/** for development. If www.roomplan.online is served separately, allow that host or redirect it to the canonical host.
-3. Configure production SMTP, authentication rate limits, and monitoring before inviting public users. Test sign-in in the same browser that requested the PKCE email link.
+3. Configure production SMTP, authentication rate limits, and monitoring before inviting public users. After deploying the auth callback update, replace both Confirm sign up and Magic link or OTP templates with supabase/templates/email-sign-in.html. Deploy the code BEFORE changing the templates. These token-hash links establish a session in the browser opening the email; the email code is a fallback. Older PKCE links require the same browser that requested them. Request a fresh email after deployment/template changes. Custom SMTP and production redirects were saved; real dashboard sign-in remains unverified.
 4. Verify with two real accounts: create a project, invite the other email, accept, edit different objects concurrently, edit the same object concurrently, revoke access, verify viewer restrictions and reload after saving. These live account tests are not yet completed.
 
 ## Sharing and concurrency
@@ -37,6 +37,7 @@ Google sign-in stays disabled until a Google OAuth web client and Supabase Googl
 
 npm run lint
 npm run build
+npx tsx scripts/test-cloud-auth.ts
 npx tsx scripts/test-cloud-database.ts
 npx tsx scripts/test-cloud-sync.ts
 

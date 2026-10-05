@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import App from "../App";
-import { supabase, googleEnabled, requireCloud } from "./client";
+import { supabase, googleEnabled, requireCloud, initializeCloudAuth } from "./client";
+import { signInRedirect } from "./auth";
 import {
   check,
   createProject,
@@ -33,19 +34,21 @@ export default function CloudWorkspace() {
   const [email, setEmail] = useState(""),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState("");
+  const [sentEmail, setSentEmail] = useState(""), [emailCode, setEmailCode] = useState("");
   const params = new URLSearchParams(location.search);
   useEffect(() => {
     if (!supabase) return;
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) setError(error.message);
-      setUser(data.session?.user ?? null);
+    let active = true;
+    initializeCloudAuth!().then(({ user, error }) => {
+      if (!active) return;
+      setError(error);
+      setUser(user);
       setReady(true);
     });
     const { data } = supabase.auth.onAuthStateChange((_e, s) => {
       setUser(s?.user ?? null);
-      setReady(true);
     });
-    return () => data.subscription.unsubscribe();
+    return () => { active = false; data.subscription.unsubscribe(); };
   }, []);
   if (params.has("local"))
     return (
@@ -82,10 +85,11 @@ export default function CloudWorkspace() {
               check(
                 await requireCloud().auth.signInWithOtp({
                   email,
-                  options: { emailRedirectTo: location.href },
+                  options: { emailRedirectTo: signInRedirect(location.href) },
                 }),
               );
               setNotice("Check your email for your sign-in link.");
+              setSentEmail(email.trim());
             } catch (e) {
               setError(message(e));
             } finally {
@@ -108,6 +112,27 @@ export default function CloudWorkspace() {
             {busy ? "Sending…" : "Continue with email"}
           </button>
         </form>
+        {sentEmail && (
+          <form onSubmit={async e => {
+            e.preventDefault();
+            setBusy(true);
+            setError("");
+            try {
+              const result = await requireCloud().auth.verifyOtp({ email: sentEmail, token: emailCode.trim(), type: "email" });
+              check(result);
+              if (!result.data.session) throw new Error("Sign-in could not be completed. Request a new email.");
+              setUser(result.data.session.user);
+              setEmailCode("");
+            } catch (e) { setError(message(e)); }
+            finally { setBusy(false); }
+          }}>
+            <label>Email code
+              <input inputMode="numeric" autoComplete="one-time-code" required value={emailCode}
+                onChange={e => setEmailCode(e.target.value)} placeholder="Code from your email" />
+            </label>
+            <button className="primary" disabled={busy}>{busy ? "Verifying…" : "Verify email code"}</button>
+          </form>
+        )}
         {googleEnabled && (
           <button
             onClick={async () => {
@@ -115,7 +140,7 @@ export default function CloudWorkspace() {
                 check(
                   await requireCloud().auth.signInWithOAuth({
                     provider: "google",
-                    options: { redirectTo: location.href },
+                    options: { redirectTo: signInRedirect(location.href) },
                   }),
                 );
               } catch (e) {
