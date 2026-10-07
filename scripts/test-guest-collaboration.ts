@@ -74,6 +74,14 @@ for (const link of links.filter(l=>l.expires_at)) {
 }
 assert.equal((await rpc('rp_open_guest_link',[links[3].token])).role,'editor');
 await as(owner);
+const ownerSession='10000000-0000-0000-0000-000000000003';
+await rpc('rp_collaborate',[id,ownerSession,1,JSON.stringify({x:50,y:60,view:'2d'}),null]);
+await as();
+const ownerToGuest=await rpc('rp_collaborate',[id,'10000000-0000-0000-0000-000000000004',1,JSON.stringify({x:70,y:80,view:'2d'}),links[3].token]);
+assert.deepEqual(ownerToGuest.peers.find((p:any)=>p.name==='owner')?.cursor,{x:50,y:60,view:'2d'});
+await as(owner);
+const guestToOwner=await rpc('rp_collaborate',[id,ownerSession,1,null,null]);
+assert.ok(guestToOwner.peers.some((p:any)=>p.cursor?.x===70 && p.cursor?.y===80),'Owner receives guest editor cursor');
 await rpc('rp_update_project',[id,'Archived',true]);
 await as();
 await assert.rejects(()=>rpc('rp_open_guest_link',[links[3].token]));

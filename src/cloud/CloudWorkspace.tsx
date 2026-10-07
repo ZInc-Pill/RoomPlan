@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LayoutGrid } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import App from "../App";
 import { supabase, googleEnabled, requireCloud, initializeCloudAuth } from "./client";
@@ -205,7 +206,7 @@ function SignedWorkspace({ user }: { user: User }) {
     );
   return id ? <ProjectLoader id={id} user={user} /> : <Dashboard user={user} />;
 }
-function Dashboard({ user }: { user: User }) {
+export function Dashboard({ user }: { user: User }) {
   const [projects, setProjects] = useState<ProjectCard[]>([]),
     [invitations, setInvitations] = useState<any[]>([]),
     [error, setError] = useState(""),
@@ -246,6 +247,17 @@ function Dashboard({ user }: { user: User }) {
       setBusy(false);
     }
   };
+  const visibleProjects = projects
+          .filter(
+            (p) =>
+              p.title.toLowerCase().includes(query.toLowerCase()) &&
+              (filter === "archived" ? p.archived : !p.archived) &&
+              (filter === "own"
+                ? p.owner_id === user.id
+                : filter === "shared"
+                  ? p.owner_id !== user.id
+                  : true),
+          );
   return (
     <main className="cloud-page">
       <header className="cloud-heading">
@@ -318,19 +330,10 @@ function Dashboard({ user }: { user: User }) {
         </select>
       </div>
       <div className="cloud-grid">
-        {projects
-          .filter(
-            (p) =>
-              p.title.toLowerCase().includes(query.toLowerCase()) &&
-              (filter === "archived" ? p.archived : !p.archived) &&
-              (filter === "own"
-                ? p.owner_id === user.id
-                : filter === "shared"
-                  ? p.owner_id !== user.id
-                  : true),
-          )
+        {visibleProjects
           .map((p) => (
             <article key={p.id} className="cloud-card">
+              <div className="cloud-card-icon" aria-hidden="true"><LayoutGrid size={26} strokeWidth={1.5} /></div>
               <button
                 className="cloud-project-title"
                 onClick={() => go("project", p.id)}
@@ -374,8 +377,8 @@ function Dashboard({ user }: { user: User }) {
             </article>
           ))}
       </div>
-      {!projects.length && !busy && !error && (
-        <p>Create your first room plan to get started.</p>
+      {!visibleProjects.length && !busy && !error && (
+        <div className="cloud-empty"><LayoutGrid size={32} aria-hidden="true" /><h2>{projects.length ? "No matching projects" : "Make room for your ideas"}</h2><p>{projects.length ? "Try another search or choose a different project filter." : "Create your first room plan, or import the plan saved on this device."}</p></div>
       )}
       {more && (
         <button disabled={busy} onClick={() => void refresh(projects.length)}>
@@ -444,6 +447,7 @@ function CloudEditor({
     [blocked, setBlocked] = useState(false),
     [recovery, setRecovery] = useState(false),
     [accessEnded, setAccessEnded] = useState(false),
+    [presenceStatus, setPresenceStatus] = useState("Connecting collaboration…"),
     [peers, setPeers] = useState<Collaborator[]>([]);
   const presence = useRef<CollaborationLoop | null>(null);
   const session = useRef(crypto.randomUUID());
@@ -543,6 +547,7 @@ function CloudEditor({
         sync.role = result.role;
         if (!sync.conflict) sync.error = "";
         setBlocked(false);
+        setPresenceStatus("Live collaboration");
         const nextPeers = safePeers(result.peers);
         setPeers(previous => same(previous, nextPeers) ? previous : nextPeers);
         if (result.project) sync.receive(validateProject(result.project));
@@ -550,8 +555,15 @@ function CloudEditor({
       } catch (e) {
         if (sync.disposed) return;
         if (["42501", "PGRST116"].includes((e as any).code)) { setAccessEnded(true); setBlocked(true); loop.stop(); }
-        else if ((e as any).code === "PGRST202") { loop.stop(); void refresh(); }
-        else { setBlocked(true); sync.fail(e); }
+        else if ((e as any).code === "PGRST202") {
+          // A room opened before a migration must recover once its RPC becomes available.
+          loop.retryAfter(5000);
+          setPresenceStatus("Collaboration is waiting for the database update. Retrying…");
+        }
+        else {
+          loop.retryAfter(3000);
+          setPresenceStatus(`Collaboration interrupted: ${message(e)}. Retrying…`);
+        }
       }
     });
     presence.current = loop;
@@ -626,6 +638,7 @@ function CloudEditor({
           <button onClick={() => setSharing(true)}>Share</button>
         )}
       </header>
+      <div className="collaboration-people" role="status">{presenceStatus}<small> · Cursors appear when others move inside the same 2D or 3D view.</small></div>
       {peers.length > 0 && <div className="collaboration-people" aria-label={`${peers.length} other people in this project`}>{peers.slice(0,4).map(p => <span key={p.id} className="collaboration-person" style={{color:cursorColor(p.id)}}>{p.name}</span>)}{peers.length>4 && <small>+{peers.length-4} more</small>}</div>}
       {recovery && (
         <div className="cloud-error">
@@ -864,7 +877,7 @@ export function SharePanel({
             Get link
           </button>
           <button
-            disabled={busy}
+            className="danger" disabled={busy}
             onClick={() =>
               void run(async () => {
                 check(
@@ -910,7 +923,7 @@ export function SharePanel({
         const inactive = l.revoked_at || (l.expires_at && Date.parse(l.expires_at) <= Date.now());
         return <div className="cloud-member" key={l.token}>
           <span>{l.role === 'editor' ? 'Can edit' : 'Can view'} · {l.revoked_at ? 'Revoked' : inactive ? 'Expired' : l.expires_at ? `Ends ${new Date(l.expires_at).toLocaleString()}` : 'Unlimited'}</span>
-          {!inactive && <><button onClick={() => setLink(guestHref(l.token))}>Get link</button><button disabled={busy} onClick={() => void run(async () => {
+          {!inactive && <><button onClick={() => setLink(guestHref(l.token))}>Get link</button><button className="danger" disabled={busy} onClick={() => void run(async () => {
             check(await requireCloud().rpc('rp_revoke_guest_link', { p_token: l.token }));
             if (link === guestHref(l.token)) setLink('');
           })}>Revoke link</button></>}

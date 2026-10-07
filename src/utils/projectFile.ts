@@ -1,3 +1,4 @@
+import { packProperties } from './objectPack';
 import { openingValidationError } from './openingAttachment';
 import type { PlanDocument } from './documentHistory';
 import { ITEM_CATALOG } from '../catalog';
@@ -40,7 +41,7 @@ export function parseProject(text: string): PlanDocument {
       if (i.wallId !== undefined && (!data.walls.some((wall: any) => wall?.id === i.wallId) || typeof i.wallOffset !== 'number' || !Number.isFinite(i.wallOffset) || i.wallOffset < 0)) throw new Error('Invalid opening wall attachment.');
       if (i.wallId !== undefined && !ITEM_CATALOG.some(type => type.id === i.typeId && ['door', 'window'].includes(type.shape))) throw new Error('Only doors and windows can attach to walls.');
       if (!ITEM_CATALOG.some(type => type.id === i.typeId)) throw new Error('Project contains an unknown furniture type.');
-      return { id: itemId, typeId: i.typeId, ...point(i), rotation: number(i.rotation, 'rotation'), ...optional(i, ['width', 'depth', 'height', 'elevation'], true), ...optional(i, ['color', 'material', 'wallId']), ...(i.wallId !== undefined ? { wallOffset: i.wallOffset } : {}) };
+      return { ...packProperties(i), id: itemId, typeId: i.typeId, ...point(i), rotation: number(i.rotation, 'rotation'), ...optional(i, ['width', 'depth', 'height', 'elevation'], true), ...optional(i, ['color', 'material', 'wallId']), ...(i.wallId !== undefined ? { wallOffset: i.wallOffset } : {}) };
     }),
     comments: data.comments.map((c: any) => ({ id: id(c), ...point(c), text: string(c.text, 'note') })),
   };

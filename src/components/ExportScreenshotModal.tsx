@@ -87,7 +87,7 @@ export const ExportScreenshotModal: React.FC<ExportScreenshotModalProps> = ({
     >
       <div
         id="export-screenshot-modal"
-        className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 space-y-5"
+        className="rp-modal-card bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -104,6 +104,7 @@ export const ExportScreenshotModal: React.FC<ExportScreenshotModalProps> = ({
           </div>
           <button
             id="export-screenshot-close"
+            aria-label="Close export"
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
           >

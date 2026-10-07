@@ -1,3 +1,5 @@
+import { isStair } from '../utils/objectPack';
+import { ObjectPackControls } from './ObjectPackControls';
 import React, { useState, useRef, useEffect } from 'react';
 import { pxToCm } from '../utils/coordinates';
 import { Wall, PlacedItem, Floor } from '../types';
@@ -98,6 +100,7 @@ export function MobileInspectorDrawer({
               if (selectedItem.wallId) onUpdateItem(selectedItem.id, { wallId: undefined, wallOffset: undefined });
               else { const attached = attachNearestOpening(selectedItem, walls); if (attached) onUpdateItem(selectedItem.id, attached); }
             }}>{selectedItem.wallId ? 'Detach from wall' : 'Attach to nearest wall'}</button>}
+            {selectedItem && <ObjectPackControls item={selectedItem} onUpdate={onUpdateItem} />}
             {selectedItem && (
               <>
                 <div className="space-y-1.5">
@@ -121,12 +124,12 @@ export function MobileInspectorDrawer({
 
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs font-semibold text-slate-700">
-                    <span>Depth</span>
+                    <span>{isStair(selectedItem) ? 'Length' : 'Depth'}</span>
                     <span className="text-indigo-600">{Math.round(Number.isFinite(selectedItem.depth) ? selectedItem.depth! : (itemType?.depth ?? 60))} cm</span>
                   </div>
                   <input
-                    type="range" aria-label="Depth in centimeters"
-                    min="30"
+                    type="range" aria-label={isStair(selectedItem) ? "Length in centimeters" : "Depth in centimeters"}
+                    min={isOpening(selectedItem) ? 1 : 30}
                     max="400"
                     step="5"
                     value={Math.round(Number.isFinite(selectedItem.depth) ? selectedItem.depth! : (itemType?.depth ?? 60))}
@@ -138,8 +141,8 @@ export function MobileInspectorDrawer({
                   />
                 </div>
 
-                <label className="block text-xs font-semibold">Elevation (cm)<input aria-label="Elevation in centimeters" type="number" min="0" step="5" value={selectedItem.elevation ?? 0} onChange={e => onUpdateItem(selectedItem.id, { elevation: Math.max(0, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>
-                <label className="block text-xs font-semibold">Height (cm)<input aria-label="Height in centimeters" type="number" min="1" value={selectedItem.height ?? itemType?.height ?? 100} onChange={e => onUpdateItem(selectedItem.id, { height: Math.max(1, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>
+                {!isStair(selectedItem) && <label className="block text-xs font-semibold">Elevation (cm)<input aria-label="Elevation in centimeters" type="number" min="0" step="5" value={selectedItem.elevation ?? 0} onChange={e => onUpdateItem(selectedItem.id, { elevation: Math.max(0, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>}
+                <label className="block text-xs font-semibold">{isStair(selectedItem) ? (selectedItem.stairDirection === 'down' ? 'Descent' : 'Rise') : 'Height'} (cm)<input aria-label={isStair(selectedItem) ? "Rise or descent in centimeters" : "Height in centimeters"} type="number" min="1" value={selectedItem.height ?? itemType?.height ?? 100} onChange={e => onUpdateItem(selectedItem.id, { height: Math.max(1, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>
                 {/* Item Material & Finish */}
                 <div className="pt-2 border-t border-slate-100">
                   <MaterialPicker

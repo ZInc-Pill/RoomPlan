@@ -1,4 +1,33 @@
 @import "tailwindcss";
+@import "./design-system.css";
+
+/* Existing utility-based controls share the RoomPlan palette. */
+@theme {
+  --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --color-indigo-50: #edf6f3;
+  --color-indigo-100: #d9ece5;
+  --color-indigo-200: #bad9cd;
+  --color-indigo-300: #8cbcad;
+  --color-indigo-400: #579a89;
+  --color-indigo-500: #277b6b;
+  --color-indigo-600: #186454;
+  --color-indigo-700: #145346;
+  --color-indigo-800: #174539;
+  --color-indigo-900: #153a32;
+  --color-slate-50: #f8f9f6;
+  --color-slate-100: #f0f2ed;
+  --color-slate-200: #dfe4dc;
+  --color-slate-300: #c6cfc4;
+  --color-slate-400: #77877d;
+  --color-slate-500: #617067;
+  --color-slate-600: #4b5d52;
+  --color-slate-700: #354b40;
+  --color-slate-800: #273c32;
+  --color-slate-900: #1d3027;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.25rem;
+}
 
 html, body, #root {
   width: 100%;

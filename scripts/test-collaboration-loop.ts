@@ -23,6 +23,18 @@ visible=false; mock.timers.tick(1000); await Promise.resolve();
 assert.equal(calls.length,2,'Hidden tabs do not issue requests');
 loop.stop(); mock.timers.tick(10000);
 assert.equal(calls.length,2,'Dispose stops requests');
+let attempts=0;
+const recovering=new CollaborationLoop(async()=>{
+  attempts++;
+  if(attempts===1) recovering.retryAfter(5000);
+},()=>true);
+recovering.wake(); mock.timers.tick(0); await Promise.resolve(); await Promise.resolve();
+recovering.point({x:10,y:20,view:'2d'});
+mock.timers.tick(4999);
+assert.equal(attempts,1,'Movement cannot bypass outage backoff');
+mock.timers.tick(1); await Promise.resolve(); await Promise.resolve();
+assert.equal(attempts,2,'Collaboration recovers without reloading after service returns');
+recovering.stop();
 mock.timers.reset();
 assert.equal(guestToken('https://roomplan.online/#guest=abc'),'abc');
 assert.equal(guestToken('https://roomplan.online/?share=abc'),null);

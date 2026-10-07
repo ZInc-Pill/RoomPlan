@@ -2,10 +2,17 @@ import { ItemType } from './types';
 
 export const ITEM_CATALOG: ItemType[] = [
   // Windows & Doors
-  { id: 'win_std', name: 'Window (Standard)', category: 'window', width: 90, depth: 15, height: 120, color: '#bae6fd', shape: 'window', icon: 'AppWindow' },
+  { id: 'win_std', defaultElevation: 90, name: 'Window (Standard)', category: 'window', width: 90, depth: 15, height: 120, color: '#bae6fd', shape: 'window', icon: 'AppWindow' },
   { id: 'win_large', name: 'Window (Panoramic)', category: 'window', width: 200, depth: 15, height: 150, color: '#bae6fd', shape: 'window', icon: 'AppWindow' },
   { id: 'door_int', name: 'Door (Interior)', category: 'door', width: 80, depth: 10, height: 210, color: '#8b5a2b', shape: 'door', icon: 'DoorOpen' },
   { id: 'door_ext', name: 'Door (Exterior)', category: 'door', width: 90, depth: 15, height: 210, color: '#334155', shape: 'door', icon: 'DoorClosed' },
+
+  { id: 'win_high', name: 'Window (High horizontal)', category: 'window', width: 180, depth: 15, height: 50, defaultElevation: 180, color: '#bae6fd', shape: 'window', icon: 'AppWindow' },
+  { id: 'win_wall', name: 'Window (Long panoramic)', category: 'window', width: 360, depth: 15, height: 150, defaultElevation: 90, color: '#bae6fd', shape: 'window', icon: 'PanelsTopLeft' },
+  { id: 'win_tall', name: 'Window (Floor to ceiling)', category: 'window', width: 120, depth: 15, height: 270, color: '#bae6fd', shape: 'window', icon: 'PanelTop' },
+  { id: 'door_glass_single', name: 'Glass Door (Single)', category: 'door', width: 90, depth: 12, height: 270, color: '#d9e9eb', shape: 'door', icon: 'DoorOpen' },
+  { id: 'door_glass_double', name: 'Glass Door (Double)', category: 'door', width: 180, depth: 12, height: 270, color: '#d9e9eb', shape: 'door', icon: 'PanelsTopLeft' },
+  { id: 'door_glass_sliding', name: 'Glass Door (Sliding)', category: 'door', width: 240, depth: 16, height: 270, color: '#d9e9eb', shape: 'door', icon: 'PanelLeftRightDashed' },
 
   // Kitchen
   { id: 'kit_counter', name: 'Kitchen Counter', category: 'kitchen', width: 180, depth: 60, height: 90, color: '#e5e7eb', shape: 'counter', icon: 'CookingPot' },
@@ -18,6 +25,9 @@ export const ITEM_CATALOG: ItemType[] = [
   { id: 'kit_fridge_dbl', name: 'Fridge (Double Door)', category: 'kitchen', width: 90, depth: 75, height: 180, color: '#9ca3af', shape: 'box', icon: 'Refrigerator' },
   { id: 'kit_table_4', name: 'Table (4-seat)', category: 'kitchen', width: 120, depth: 80, height: 75, color: '#a16207', shape: 'table', icon: 'Utensils' },
   { id: 'kit_table_6', name: 'Table (6-seat)', category: 'kitchen', width: 180, depth: 90, height: 75, color: '#a16207', shape: 'table', icon: 'Utensils' },
+
+  { id: 'kit_island_seating', name: 'Island (Seating overhang)', category: 'kitchen', width: 200, depth: 110, height: 90, color: '#d6c5ac', shape: 'kitchen_island', icon: 'Layout' },
+  { id: 'kit_island_divider', name: 'Island (With divider)', category: 'kitchen', width: 200, depth: 100, height: 90, color: '#d6c5ac', shape: 'kitchen_island', icon: 'Columns3' },
 
   // Bedroom
   { id: 'bed_single', name: 'Bed (Single)', category: 'bedroom', width: 100, depth: 200, height: 55, color: '#e2e8f0', shape: 'bed', icon: 'Bed' },
@@ -46,6 +56,11 @@ export const ITEM_CATALOG: ItemType[] = [
   { id: 'bal_plant', name: 'Potted Plant', category: 'balcony', width: 40, depth: 40, height: 100, color: '#22c55e', shape: 'cylinder', icon: 'TreePine' },
   { id: 'bal_chair', name: 'Outdoor Chair', category: 'balcony', width: 70, depth: 75, height: 85, color: '#f59e0b', shape: 'box', icon: 'Armchair' },
   { id: 'bal_lounge_chair', name: 'Lounge Chair', category: 'balcony', width: 75, depth: 85, height: 90, color: '#f59e0b', shape: 'lounge_chair', icon: 'Armchair' },
+
+  // Decorative stairs: height is the positive rise/descent magnitude.
+  { id: 'stairs_straight', name: 'Stairs (Straight)', category: 'architecture', width: 110, depth: 360, height: 280, color: '#c7b69e', shape: 'stairs', icon: 'ChartNoAxesColumnIncreasing' },
+  { id: 'stairs_l', name: 'Stairs (L-shaped)', category: 'architecture', width: 280, depth: 320, height: 280, color: '#c7b69e', shape: 'stairs', icon: 'CornerDownRight' },
+  { id: 'stairs_u', name: 'Stairs (U-shaped)', category: 'architecture', width: 240, depth: 320, height: 280, color: '#c7b69e', shape: 'stairs', icon: 'CornerRightUp' },
 
   // Architecture
   { id: 'arch_divider', name: 'Room Divider', category: 'architecture', width: 120, depth: 5, height: 200, color: '#d1d5db', shape: 'room_divider', icon: 'SplitSquareHorizontal' },

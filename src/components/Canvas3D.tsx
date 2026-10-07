@@ -1,3 +1,6 @@
+import { Island3D, Stairs3D, GlazedOpening3D } from './ObjectPack3D';
+import { stairOpening, isGlassDoor, isStair } from '../utils/objectPack';
+import { floorWithOpenings } from '../utils/floorOpenings';
 import { MobileControlPortal, RailButton } from './MobileWorkspace';
 import { MobileGlide } from './MobileGlide';
 import { cameraRelativeGlide } from '../utils/mobileCameraMovement';
@@ -94,29 +97,19 @@ const WALL_COLOR_PRESETS = [
 
 function Floor3D({ 
   floor, 
+  holes,
   isSelected, 
   onSelect,
   onDelete,
   onDuplicate
 }: { 
   floor: Floor; 
+  holes: {x:number;y:number}[][];
   isSelected: boolean; 
   onSelect: () => void; 
   onDelete?: () => void;
   onDuplicate?: () => void;
 }) {
-  const shape = useMemo(() => {
-    const s = new THREE.Shape();
-    if (floor.points.length > 0) {
-      s.moveTo(floor.points[0].x, floor.points[0].y);
-      for (let i = 1; i < floor.points.length; i++) {
-        s.lineTo(floor.points[i].x, floor.points[i].y);
-      }
-      s.closePath();
-    }
-    return s;
-  }, [floor]);
-
   const centroid = useMemo(() => {
     if (floor.points.length === 0) return { x: 0, z: 0 };
     const cx = floor.points.reduce((sum, p) => sum + p.x, 0) / floor.points.length;
@@ -139,25 +132,15 @@ function Floor3D({
   const matDef = useMemo(() => getFloorMaterial(floor.material), [floor.material]);
   const texture = useMemo(() => !minimalStyle && floor.material ? getProceduralTexture(floor.material) : null, [floor.material, minimalStyle]);
 
-  const floorGeometry = useMemo(() => {
-    const geom = new THREE.ShapeGeometry(shape);
-    const pos = geom.attributes.position;
-    const uvs = new Float32Array(pos.count * 2);
-    for (let i = 0; i < pos.count; i++) {
-      // 80 units = 200cm = 2 meters for true-to-scale tile/plank repeats
-      uvs[i * 2] = pos.getX(i) / 80;
-      uvs[i * 2 + 1] = pos.getY(i) / 80;
-    }
-    geom.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    return geom;
-  }, [shape]);
+  const floorGeometry = useMemo(() => floorWithOpenings(floor.points,holes), [floor.points,holes]);
+  useEffect(()=>()=>floorGeometry.dispose(),[floorGeometry]);
 
   return (
     <group>
       <mesh 
         geometry={floorGeometry}
         position={[0, 0.1, 0]} 
-        rotation={[Math.PI / 2, 0, 0]} 
+        rotation={[Math.PI / 2, 0, 0]}
         receiveShadow
         onClick={(e) => {
           e.stopPropagation();
@@ -714,12 +697,15 @@ function Item3D({
           metalness={metalness} selected={isSelected} hovered={isHovered} />
       )}
 
-      {CASE_FURNITURE_IDS.includes(item.typeId) && (
+      {CASE_FURNITURE_IDS.includes(item.typeId) && typeInfo.shape !== 'kitchen_island' && (
         <CaseFurniture typeId={item.typeId} width={w} height={h} depth={d} color={color}
           roughness={roughness} metalness={metalness} selected={isSelected} hovered={isHovered} />
       )}
 
-      {typeInfo.shape === 'door' && (
+      {typeInfo.shape === 'kitchen_island' && <Island3D item={item} w={w} h={h} d={d} color={color} roughness={roughness} metalness={metalness} map={itemTexture} />}
+      {typeInfo.shape === 'stairs' && <Stairs3D item={item} w={w} h={h} d={d} color={color} roughness={roughness} metalness={metalness} map={itemTexture} />}
+      {isGlassDoor(item) && <GlazedOpening3D item={item} w={w} h={h} d={d} />}
+      {typeInfo.shape === 'door' && !isGlassDoor(item) && (
         <group>
           <mesh position={[-w/2 + 2.5, h/2, 0]} castShadow receiveShadow>
             <boxGeometry args={[5, h, d]} />
@@ -746,19 +732,7 @@ function Item3D({
         </group>
       )}
 
-      {typeInfo.shape === 'window' && (
-        <group>
-          <mesh position={[0, h/2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w, h, d]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.5} />
-            {isSelected && <Edges scale={1.002} threshold={15} color="#4f46e5" />}
-          </mesh>
-          <mesh position={[0, h/2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w - 10, h - 10, d + 2]} />
-            <meshStandardMaterial color={color} roughness={roughness} metalness={0.9} opacity={0.6} transparent />
-          </mesh>
-        </group>
-      )}
+      {typeInfo.shape === 'window' && <GlazedOpening3D item={{...item,frameColor:item.frameColor??'#ffffff'}} w={w} h={h} d={d} />}
 
       {typeInfo.shape === 'bathtub' && (
         <group>
@@ -885,7 +859,7 @@ function Item3D({
                       </button>
                     </>
                   )}
-                  {onElevate && (
+                  {onElevate && !isStair(item) && (
                     <>
                       <div className="w-px h-3.5 bg-slate-700 mx-0.5" />
                       <button
@@ -1529,6 +1503,10 @@ export function Canvas3D({
   }, [readOnly, cameraPreset, interactionBlocked, effectiveIsMobile, editing, selectedItem, selectedWall, selectedFloor, snapMode, onUpdateItem, onUpdateWall, onUpdateFloor, onRotate, onElevate, onDeleteItem, onDeleteWall, onDeleteFloor, onSelect]);
 
 
+  const stairHoles=useMemo(()=>items.flatMap(item=>{const hole=stairOpening(item);return hole?[hole]:[];}),[items]);
+  const groundGeometry=useMemo(()=>floorWithOpenings([{x:targetX-7500,y:targetZ-7500},{x:targetX+7500,y:targetZ-7500},{x:targetX+7500,y:targetZ+7500},{x:targetX-7500,y:targetZ+7500}],stairHoles),[targetX,targetZ,stairHoles]);
+  useEffect(()=>()=>groundGeometry.dispose(),[groundGeometry]);
+
   return (
     <MinimalStyleContext.Provider value={minimalStyle}>
     <div style={{ pointerEvents: interactionBlocked ? 'none' : undefined }} className="w-full h-full bg-[#f3f2ef] select-none touch-none relative overflow-hidden flex flex-col">
@@ -1563,7 +1541,7 @@ export function Canvas3D({
           {floors.map(f => (
             <Floor3D 
               key={f.id} 
-              floor={f} 
+              floor={f} holes={stairHoles}
               isSelected={canSelect && selectedFloorId === f.id}
               onSelect={() => selectInPreview([], null, f.id, null)}
               onDelete={onDeleteFloor}
@@ -1622,21 +1600,21 @@ export function Canvas3D({
 
           {/* Global Ground Plane - Handles Click to Deselect */}
           <mesh 
-            rotation={[-Math.PI / 2, 0, 0]} 
-            position={[targetX, -1, targetZ]}
+            geometry={groundGeometry}
+            rotation={[Math.PI / 2, 0, 0]}
+            position={[0, -1, 0]}
             receiveShadow
             onClick={(e) => {
               onSelect([], null, null, null);
             }}
           >
-            <planeGeometry args={[15000, 15000]} />
-            <meshStandardMaterial color="#e9e7e2" roughness={0.95} />
+            <meshStandardMaterial color="#e9e7e2" roughness={0.95} side={THREE.DoubleSide} />
           </mesh>
 
 
         </group>
 
-        <ContactShadows 
+        {stairHoles.length===0 && <ContactShadows
           opacity={0.25}
           scale={5000} 
           blur={3.5}
@@ -1644,7 +1622,7 @@ export function Canvas3D({
           resolution={256} 
           color="#000000" 
           position={[targetX, 0, targetZ]} 
-        />
+        />}
 
 
         <OrbitControls 

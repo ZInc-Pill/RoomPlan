@@ -35,11 +35,17 @@ export type ItemType = {
   height: number; // y axis (height in 3d)
   depth: number; // z axis (y in 2d)
   color: string;
-  shape: 'box' | 'cylinder' | 'sofa' | 'bed' | 'table' | 'counter' | 'door' | 'window' | 'bathtub' | 'toilet' | 'rug' | 'base_cabinet' | 'corner_cabinet' | 'kitchen_island' | 'kitchen_sink' | 'dishwasher' | 'railing' | 'corner_railing' | 'lounge_chair' | 'room_divider' | 'tv_cabinet';
+  shape: 'box' | 'cylinder' | 'sofa' | 'bed' | 'table' | 'counter' | 'door' | 'window' | 'bathtub' | 'toilet' | 'rug' | 'base_cabinet' | 'corner_cabinet' | 'kitchen_island' | 'kitchen_sink' | 'dishwasher' | 'railing' | 'corner_railing' | 'lounge_chair' | 'room_divider' | 'tv_cabinet' | 'stairs';
   icon: string;
+  defaultElevation?: number;
 };
 
 export type PlacedItem = {
+  dividerStyle?: 'solid' | 'slats' | 'glass' | 'fluted' | 'folding';
+  dividerHeight?: number;
+  stairDirection?: 'up' | 'down';
+  stairRailings?: boolean;
+  frameColor?: string;
   wallId?: string;
   wallOffset?: number; // centre distance from wall start, in centimetres
   id: string;

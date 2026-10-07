@@ -28,6 +28,7 @@ export class CollaborationLoop {
   private active = false;
   private moved = 0;
   private nextRequest = 0;
+  private retryAt = 0;
   cursor: CollaboratorCursor | null = null;
   constructor(private request: (cursor: CollaboratorCursor | null) => Promise<void>, private visible: () => boolean = () => !document.hidden) {}
   point(cursor: CollaboratorCursor | null) {
@@ -35,10 +36,13 @@ export class CollaborationLoop {
     this.moved = Date.now();
     this.wake();
   }
+  retryAfter(milliseconds: number) {
+    this.retryAt = Date.now() + milliseconds;
+  }
   wake() {
     if (this.stopped || this.active) return;
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => void this.tick(), Math.max(0, this.nextRequest - Date.now()));
+    this.timer = setTimeout(() => void this.tick(), Math.max(0, this.nextRequest - Date.now(), this.retryAt - Date.now()));
   }
   async tick() {
     if (this.stopped || this.active) return;
@@ -47,7 +51,7 @@ export class CollaborationLoop {
     try { if (this.visible()) await this.request(this.cursor); }
     finally {
       this.active = false;
-      if (!this.stopped) this.timer = setTimeout(() => void this.tick(), Date.now() - this.moved < 1200 ? 200 : 500);
+      if (!this.stopped) this.timer = setTimeout(() => void this.tick(), Math.max(this.retryAt - Date.now(), Date.now() - this.moved < 1200 ? 200 : 500));
     }
   }
   stop() { this.stopped = true; clearTimeout(this.timer); }

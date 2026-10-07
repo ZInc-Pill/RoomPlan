@@ -1,3 +1,5 @@
+import { isStair } from '../utils/objectPack';
+import { ObjectPackControls } from './ObjectPackControls';
 import React from 'react';
 import { Wall, PlacedItem, Floor } from '../types';
 import { ITEM_CATALOG } from '../catalog';
@@ -61,7 +63,7 @@ export function PropertiesPanel({
   };
 
   return (
-    <aside className="hidden md:flex w-72 shrink-0 bg-white/80 backdrop-blur-xl border-l border-slate-200 h-full flex-col shadow-[-4px_0_24px_rgba(0,0,0,0.02)] z-10 relative transition-transform duration-300 ease-out">
+    <aside className="rp-inspector hidden md:flex w-72 shrink-0 bg-white/80 backdrop-blur-xl border-l border-slate-200 h-full flex-col shadow-[-4px_0_24px_rgba(0,0,0,0.02)] z-10 relative transition-transform duration-300 ease-out">
       <div className="p-5 border-b border-slate-100 flex items-center gap-2">
         <Settings2 className="w-5 h-5 text-indigo-500" />
         <h2 className="text-sm font-bold text-slate-800 tracking-tight">Inspector</h2>
@@ -283,6 +285,7 @@ export function PropertiesPanel({
           </div>
         )}
 
+        {selectedItem && <ObjectPackControls item={selectedItem} onUpdate={onUpdateItem} />}
         {selectedItem && itemType && (
           <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
             <div>
@@ -356,7 +359,7 @@ export function PropertiesPanel({
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-slate-400 w-10 uppercase">Depth</span>
+                <span className="text-[10px] font-bold text-slate-400 w-10 uppercase">{isStair(selectedItem) ? 'Length' : 'Depth'}</span>
                 <input 
                   type="range" min="10" max="500" step="1"
                   value={Math.round(Number.isFinite(selectedItem.depth) ? selectedItem.depth! : (itemType.depth ?? 60))}
@@ -381,7 +384,7 @@ export function PropertiesPanel({
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-slate-400 w-10 uppercase">Height</span>
+                <span className="text-[10px] font-bold text-slate-400 w-10 uppercase">{isStair(selectedItem) ? (selectedItem.stairDirection === 'down' ? 'Descent' : 'Rise') : 'Height'}</span>
                 <input 
                   type="range" min="10" max="500" step="1"
                   value={Math.round(Number.isFinite(selectedItem.height) ? selectedItem.height! : (itemType.height ?? 100))}
@@ -405,7 +408,7 @@ export function PropertiesPanel({
                 />
               </div>
 
-              <div className="flex items-center gap-2">
+              {!isStair(selectedItem) && <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-slate-400 w-10 uppercase" title="Height from floor">Elev.</span>
                 <input 
                   type="range" min="0" max="300" step="1"
@@ -428,7 +431,7 @@ export function PropertiesPanel({
                   }}
                   className="w-14 px-1.5 py-1 text-xs font-mono font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-md text-right focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
-              </div>
+              </div>}
             </div>
 
             {/* Item Material & Finish Picker */}

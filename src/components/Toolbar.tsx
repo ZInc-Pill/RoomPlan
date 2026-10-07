@@ -32,16 +32,16 @@ export function Toolbar({
   const categories = Array.from(new Set(ITEM_CATALOG.map(i => i.category)));
 
   return (
-    <aside className="w-72 bg-white border-r border-slate-200 hidden md:flex flex-col h-full z-10 relative shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+    <aside className="rp-library w-72 bg-white border-r border-slate-200 hidden md:flex flex-col h-full z-10 relative shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
       <div className="flex bg-slate-100 p-1 mx-5 mt-5 rounded-lg border border-slate-200">
         <button 
-          onClick={() => setActiveTab('assets')}
+          aria-pressed={activeTab === 'assets'} onClick={() => setActiveTab('assets')}
           className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-colors ${activeTab === 'assets' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
         >
           Assets
         </button>
         <button 
-          onClick={() => setActiveTab('layers')}
+          aria-pressed={activeTab === 'layers'} onClick={() => setActiveTab('layers')}
           className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'layers' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
         >
           <ListTree className="w-3 h-3" /> Layers
@@ -55,14 +55,14 @@ export function Toolbar({
             {categories.map(cat => (
               <div key={cat}>
                 <h3 className="text-sm font-bold text-slate-700 mb-3 capitalize">{cat}</h3>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="rp-asset-grid">
                   {ITEM_CATALOG.filter(i => i.category === cat).map(item => {
                     const Icon = (LucideIcons as any)[item.icon] || Box;
                     return (
                       <button
                         key={item.id}
                         onClick={() => onAddItem(item.id)}
-                        className="aspect-square bg-slate-50 rounded-lg border border-slate-200 flex flex-col items-center justify-center hover:border-indigo-300 hover:bg-indigo-50 transition-colors p-1"
+                        className="rp-asset-card bg-slate-50 rounded-lg border border-slate-200 flex flex-col items-center justify-center hover:border-indigo-300 hover:bg-indigo-50 transition-colors p-1"
                         title={item.name}
                       >
                         <Icon className="w-6 h-6 mb-1 text-slate-500" strokeWidth={1.5} />

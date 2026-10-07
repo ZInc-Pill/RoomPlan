@@ -1,3 +1,4 @@
+import { isStair } from './utils/objectPack';
 import { PreviewBoundary } from './components/PreviewBoundary';
 import { browserProjectStore } from './utils/localProjectStore';
 import React, { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
@@ -249,7 +250,7 @@ export default function App({ collaborators = [], onCursor, initial, external, r
       width: typeInfo?.width ?? 90,
       depth: typeInfo?.depth ?? 60,
       height: typeInfo?.height ?? 100,
-      elevation: 0
+      elevation: typeInfo?.defaultElevation ?? 0
     };
     handleSetItems(prev => [...prev, newItem]);
     setMode('SELECT');
@@ -333,7 +334,7 @@ export default function App({ collaborators = [], onCursor, initial, external, r
   const handleElevateSelected = (deltaCm: number) => {
     if (selectedItemIds.length > 0) {
       handleSetItems(prev => prev.map(i => {
-        if (!selectedItemIds.includes(i.id)) return i;
+        if (!selectedItemIds.includes(i.id) || isStair(i)) return i;
         const currentElev = Number.isFinite(i.elevation) ? i.elevation! : 0;
         return { ...i, elevation: Math.max(0, currentElev + deltaCm) };
       }));
@@ -591,7 +592,7 @@ export default function App({ collaborators = [], onCursor, initial, external, r
 
   return (
     <MobileWorkspaceContext.Provider value={{ rail: railHost, glide: glideHost, glideOpen, tools: toolHost }}>
-    <div data-mobile-workspace={isMobile ? "true" : undefined} style={{ height: embedded ? '100%' : appViewportHeight }} className="flex flex-col w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden relative">
+    <div data-mobile-workspace={isMobile ? "true" : undefined} style={{ height: embedded ? '100%' : appViewportHeight }} className="rp-editor flex flex-col w-full bg-slate-50 font-sans text-slate-800 overflow-hidden relative">
       {/* Mobile Top Header */}
       {isMobile && <MobileHeader
         view3D={view3D}
@@ -606,21 +607,21 @@ export default function App({ collaborators = [], onCursor, initial, external, r
       {/* Desktop Top Header */}
       <header className="desktop-workspace-control hidden md:flex items-center justify-between px-6 h-16 bg-white border-b border-slate-200 shadow-sm z-10 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-indigo-200 shadow-lg">
+          <div className="rp-brand-mark">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">RoomPlan <span className="text-indigo-500">Pro</span></h1>
+          <div><h1 className="rp-brand-name">RoomPlan<span>.Online</span></h1><span className="rp-brand-caption">Room planning like Figma</span></div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex bg-slate-100 p-1 rounded-full border border-slate-200 mr-2">
+          <div className="rp-mode-switch mr-2">
             <button
-              onClick={() => setView3D(false)}
+              aria-pressed={!view3D} onClick={() => setView3D(false)}
               className={`px-6 py-1.5 rounded-full text-sm font-semibold transition-colors ${!view3D ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
             >
               2D Layout
             </button>
             <button
-              onClick={() => setView3D(true)}
+              aria-pressed={view3D} onClick={() => setView3D(true)}
               className={`px-6 py-1.5 rounded-full text-sm font-semibold transition-colors ${view3D ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
             >
               3D Preview
@@ -703,7 +704,7 @@ export default function App({ collaborators = [], onCursor, initial, external, r
           {isMobile && glideOpen && <div className="mobile-glide-column" ref={setGlideHost}>
             {!view3D && <MobileGlide key={selectionKey + mode + mobile2DSnapMode} label="Selected object" onMove={mobileMove} snap={mobile2DSnapMode === 'snap'} grid={getGridSize(gridOption)} />}
           </div>}
-          <div className="desktop-workspace-control hidden md:block absolute top-28 md:top-16 left-2 z-20 max-w-[calc(100%-1rem)] rounded-lg bg-white/95 border border-slate-200 px-2 py-1 text-[11px] shadow-sm" data-editor-control>
+          <div className="rp-save-status desktop-workspace-control hidden md:block absolute top-28 md:top-16 left-2 z-20 max-w-[calc(100%-1rem)] rounded-lg bg-white/95 border border-slate-200 px-2 py-1 text-[11px] shadow-sm" data-editor-control>
             <span role="status">{saveStatus}</span>
             {documentState.error && <p role="alert" className="max-w-xs text-rose-700">{documentState.error}</p>}
             {!initial && !readOnly && <button className="ml-2 underline min-h-8" onClick={() => {
@@ -805,7 +806,7 @@ export default function App({ collaborators = [], onCursor, initial, external, r
           )}
 
           {!view3D && !readOnly && (
-            <div className="desktop-workspace-control hidden md:flex absolute bottom-8 left-1/2 -translate-x-1/2 items-center bg-white shadow-2xl rounded-full border border-slate-200 p-2 z-20 gap-2 scale-125 origin-bottom">
+            <div className="rp-tool-dock desktop-workspace-control hidden md:flex absolute bottom-8 left-1/2 -translate-x-1/2 items-center bg-white shadow-2xl rounded-full border border-slate-200 p-2 z-20 gap-2 scale-125 origin-bottom">
               <div className="relative group">
                 <button
                   onClick={() => setMode('SELECT')}

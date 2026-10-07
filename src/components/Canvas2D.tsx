@@ -1,3 +1,5 @@
+import { StairPlan, IslandPlan } from './ObjectPack2D';
+import { isGlassDoor } from '../utils/objectPack';
 import { MobileControlPortal, RailButton } from './MobileWorkspace';
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Point, Wall, PlacedItem, AppMode, Floor, CommentType } from '../types';
@@ -483,7 +485,7 @@ export function Canvas2D({
     <>
     <div 
       ref={containerRef}
-      className={`relative w-full h-full bg-[#f8fafc] overflow-hidden select-none touch-none ${
+      className={`relative w-full h-full bg-slate-50 overflow-hidden select-none touch-none ${
         mode === 'DRAW_WALL' || mode === 'DRAW_FLOOR'
           ? 'cursor-crosshair'
           : mode === 'COMMENT'
@@ -587,7 +589,7 @@ export function Canvas2D({
               data-scene-entity="floor"
               points={floor.points.map(p => `${p.x},${p.y}`).join(' ')}
               fill={floor.material ? `url(#pattern-${floor.material})` : (floor.color || '#e2e8f0')}
-              stroke={floor.id === selectedFloorId ? "#4f46e5" : "#94a3b8"}
+              stroke={floor.id === selectedFloorId ? "#186454" : "#94a3b8"}
               strokeWidth={floor.id === selectedFloorId ? 3 : 1}
               opacity={0.88}
               onPointerDown={(e) => handleFloorPointerDown(e, floor)}
@@ -627,7 +629,7 @@ export function Canvas2D({
                   y1={seg.start.y}
                   x2={seg.end.x}
                   y2={seg.end.y}
-                  stroke={wall.id === selectedWallId ? "#4f46e5" : "#334155"}
+                  stroke={wall.id === selectedWallId ? "#186454" : "#334155"}
                   strokeWidth={wall.thickness}
                   strokeLinecap="square"
                 />
@@ -658,7 +660,7 @@ export function Canvas2D({
                 <text 
                   x={(wall.start.x + wall.end.x) / 2} 
                   y={(wall.start.y + wall.end.y) / 2 - Math.max(15, wall.thickness / 2 + 10)}
-                  fill="#4f46e5" fontSize="12" fontWeight="bold" textAnchor="middle"
+                  fill="#186454" fontSize="12" fontWeight="bold" textAnchor="middle"
                 >
                   {pxToMeters(vectorLength(wall.end.x - wall.start.x, wall.end.y - wall.start.y)).toFixed(2)}m
                 </text>
@@ -671,7 +673,7 @@ export function Canvas2D({
                 />
                 <circle 
                   cx={wall.start.x} cy={wall.start.y} r={7} 
-                  fill="#ffffff" stroke="#4f46e5" strokeWidth={3}
+                  fill="#ffffff" stroke="#186454" strokeWidth={3}
                   className="pointer-events-none"
                 />
                 {/* End node with expanded touch target */}
@@ -683,7 +685,7 @@ export function Canvas2D({
                 />
                 <circle 
                   cx={wall.end.x} cy={wall.end.y} r={7} 
-                  fill="#ffffff" stroke="#4f46e5" strokeWidth={3}
+                  fill="#ffffff" stroke="#186454" strokeWidth={3}
                   className="pointer-events-none"
                 />
               </>
@@ -700,7 +702,7 @@ export function Canvas2D({
               y1={drawingStart.y}
               x2={drawingCurrent.x}
               y2={drawingCurrent.y}
-              stroke="#4f46e5"
+              stroke="#186454"
               strokeWidth={8}
               strokeLinecap="square"
               opacity={0.7}
@@ -708,7 +710,7 @@ export function Canvas2D({
             <text 
               x={(drawingStart.x + drawingCurrent.x) / 2} 
               y={(drawingStart.y + drawingCurrent.y) / 2 - 15}
-              fill="#4f46e5" fontSize="14" fontWeight="bold" textAnchor="middle"
+              fill="#186454" fontSize="14" fontWeight="bold" textAnchor="middle"
             >
               {pxToMeters(vectorLength(drawingCurrent.x - drawingStart.x, drawingCurrent.y - drawingStart.y)).toFixed(2)}m
             </text>
@@ -735,7 +737,7 @@ export function Canvas2D({
                     width={maxX - minX}
                     height={maxY - minY}
                     fill="rgba(99, 102, 241, 0.15)"
-                    stroke="#4f46e5"
+                    stroke="#186454"
                     strokeWidth={2}
                     strokeDasharray="5 5"
                   />
@@ -793,7 +795,7 @@ export function Canvas2D({
                   <polyline
                     points={drawingFloorPts.map(p => `${p.x},${p.y}`).join(' ')}
                     fill="none"
-                    stroke="#4f46e5"
+                    stroke="#186454"
                     strokeWidth={2.5}
                   />
 
@@ -804,7 +806,7 @@ export function Canvas2D({
                       y1={lastPt.y}
                       x2={isNearStart ? startPt.x : previewPt.x}
                       y2={isNearStart ? startPt.y : previewPt.y}
-                      stroke={isNearStart ? "#10b981" : "#4f46e5"}
+                      stroke={isNearStart ? "#10b981" : "#186454"}
                       strokeWidth={2}
                       strokeDasharray="4 4"
                     />
@@ -847,14 +849,14 @@ export function Canvas2D({
                           height={24}
                           rx={6}
                           fill="#ffffff"
-                          stroke={isNearStart ? "#10b981" : "#4f46e5"}
+                          stroke={isNearStart ? "#10b981" : "#186454"}
                           strokeWidth={1.5}
                           filter="drop-shadow(0 2px 4px rgba(0,0,0,0.12))"
                         />
                         <text
                           x={c.x}
                           y={c.y + 4}
-                          fill={isNearStart ? "#059669" : "#4338ca"}
+                          fill={isNearStart ? "#059669" : "#145346"}
                           fontSize="11"
                           fontWeight="bold"
                           textAnchor="middle"
@@ -872,8 +874,8 @@ export function Canvas2D({
                         cx={p.x}
                         cy={p.y}
                         r={i === 0 ? 7 : 4.5}
-                        fill={i === 0 ? "#4f46e5" : "#ffffff"}
-                        stroke="#4f46e5"
+                        fill={i === 0 ? "#186454" : "#ffffff"}
+                        stroke="#186454"
                         strokeWidth={2}
                       />
                     </g>
@@ -998,14 +1000,14 @@ export function Canvas2D({
                       height={20}
                       rx={6}
                       fill="#ffffff"
-                      stroke="#6366f1"
+                      stroke="#277b6b"
                       strokeWidth={1.5}
                       filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
                     />
                     <text
                       x={midX}
                       y={midY + 3.5}
-                      fill="#4338ca"
+                      fill="#145346"
                       fontSize="10"
                       fontWeight="bold"
                       textAnchor="middle"
@@ -1025,7 +1027,7 @@ export function Canvas2D({
                       cx={midX}
                       cy={midY - 18}
                       r={7}
-                      fill="#4f46e5"
+                      fill="#186454"
                       stroke="#ffffff"
                       strokeWidth={2}
                       className="transition-transform group-hover:scale-125"
@@ -1051,12 +1053,12 @@ export function Canvas2D({
                 </circle>
                 <circle
                   cx={pt.x} cy={pt.y} r={7}
-                  fill="#ffffff" stroke="#4f46e5" strokeWidth={3}
+                  fill="#ffffff" stroke="#186454" strokeWidth={3}
                   className="pointer-events-none"
                 />
                 <circle
                   cx={pt.x} cy={pt.y} r={2.5}
-                  fill="#4f46e5"
+                  fill="#186454"
                   className="pointer-events-none"
                 />
               </g>
@@ -1089,10 +1091,10 @@ export function Canvas2D({
               top: item.y,
               width: w,
               height: d,
-              backgroundColor: typeInfo.shape !== 'door' && typeInfo.shape !== 'window' && typeInfo.shape !== 'corner_railing' ? typeInfo.color : 'transparent',
+              backgroundColor: typeInfo.shape !== 'door' && typeInfo.shape !== 'window' && typeInfo.shape !== 'corner_railing' ? (typeInfo.shape === 'kitchen_island' ? item.color ?? typeInfo.color : typeInfo.color) : 'transparent',
               transform: `translate(-50%, -50%) rotate(${itemRot}rad)`,
               borderRadius: typeInfo.shape === 'cylinder' ? '50%' : typeInfo.shape === 'door' ? '0' : '4px',
-              border: isSelected ? '2px solid #4f46e5' : (typeInfo.shape === 'door' ? 'none' : '1px solid rgba(0,0,0,0.2)'),
+              border: isSelected ? '2px solid #186454' : (typeInfo.shape === 'door' ? 'none' : '1px solid rgba(0,0,0,0.2)'),
               cursor: mode === 'SELECT' ? (isDraggingItem(item.id) ? 'grabbing' : 'grab') : 'default',
               boxShadow: isSelected ? '0 0 0 4px rgba(99, 102, 241, 0.25), 0 10px 15px -3px rgba(0,0,0,0.1)' : (typeInfo.shape === 'door' ? 'none' : '0 2px 4px rgba(0,0,0,0.05)'),
               transition: 'box-shadow 0.2s ease-out, border 0.2s ease-out',
@@ -1118,7 +1120,7 @@ export function Canvas2D({
             {typeInfo.shape === 'table' && (
               <div className="absolute inset-1 border border-black/10 rounded-sm"></div>
             )}
-            {typeInfo.shape === 'door' && (
+            {typeInfo.shape === 'door' && !isGlassDoor(item) && (
               <div className="relative w-full h-full bg-white">
                 {/* Door frame indicators */}
                 <div className="absolute inset-y-0 left-0 w-1 bg-slate-400 pointer-events-none" />
@@ -1134,11 +1136,12 @@ export function Canvas2D({
                   style={{ width: '3px', height: w }} 
                 />
                 {/* Selection border for door frame */}
-                {isSelected && <div className="absolute inset-0 border-2 border-[#4f46e5] pointer-events-none" />}
+                {isSelected && <div className="absolute inset-0 border-2 border-[#186454] pointer-events-none" />}
               </div>
             )}
+            {isGlassDoor(item) && <div className="absolute inset-0 bg-sky-100/70 border-2" style={{borderColor:item.frameColor??'#46534b'}}>{item.typeId!=='door_glass_single' && <div className="absolute left-1/2 h-full border-l-2" style={{borderColor:item.frameColor??'#46534b'}}/>}</div>}
             {typeInfo.shape === 'window' && (
-              <div className="w-full h-full flex flex-col justify-center border-y-[3px] border-slate-300 bg-white">
+              <div className="w-full h-full flex flex-col justify-center border-y-[3px] border-slate-300 bg-white" style={{borderColor:item.frameColor??'#c6cfc4'}}>
                 <div className="w-full h-1.5 bg-cyan-400/50"></div>
               </div>
             )}
@@ -1164,8 +1167,9 @@ export function Canvas2D({
               </>
             )}
             {typeInfo.shape === 'kitchen_island' && (
-              <div className="absolute inset-2 border border-black/10 rounded-sm"></div>
+              <IslandPlan item={item} />
             )}
+            {typeInfo.shape === 'stairs' && <StairPlan item={item} w={item.width??typeInfo.width} d={item.depth??typeInfo.depth} h={item.height??typeInfo.height} />}
             {typeInfo.shape === 'kitchen_sink' && (
               <>
                 <div className="absolute top-1/4 left-1/4 right-1/4 bottom-1/4 bg-blue-500/20 border border-black/20 rounded-sm"></div>
@@ -1565,7 +1569,7 @@ export function Canvas2D({
       )}
 
       {/* Canvas UI Overlays */}
-      <div className="desktop-workspace-control hidden md:flex absolute top-6 left-6 items-center gap-4 bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-sm pointer-events-none z-10">
+      <div className="rp-scale-info desktop-workspace-control hidden md:flex absolute top-6 left-6 items-center gap-4 bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-sm pointer-events-none z-10">
         <span className="text-xs font-bold text-slate-500">
           SCALE: 1 Sub-Grid = {gridOption === 1 ? '0.5m' : gridOption === 2 ? '0.25m' : '0.125m'} | 1 Main Grid = {pxToMeters(currentGridSize * 5)}m
         </span>
@@ -1575,7 +1579,7 @@ export function Canvas2D({
         </span>
       </div>
 
-      <div className="desktop-workspace-control hidden md:flex absolute top-16 md:top-6 right-3 md:right-6 flex items-center gap-1 bg-white/90 backdrop-blur p-1 rounded-xl border border-slate-200 shadow-sm z-10">
+      <div className="rp-zoom-controls desktop-workspace-control hidden md:flex absolute top-16 md:top-6 right-3 md:right-6 flex items-center gap-1 bg-white/90 backdrop-blur p-1 rounded-xl border border-slate-200 shadow-sm z-10">
         <button aria-label="Free object dragging" aria-pressed={freeDrag} onClick={() => setDragSnapMode(freeDrag ? 'snap' : 'free')} className="min-h-11 min-w-11 px-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50" title={isMobile ? 'Furniture snaps on release; windows attach near walls' : 'Furniture drag snapping; windows stay aligned to walls'}>{freeDrag ? 'Free' : 'Snap'}</button>
         <button 
           onClick={() => setGridOption(gridOption === 3 ? 1 : (gridOption + 1) as 1|2|3)}

@@ -24,16 +24,16 @@ export function MobileHeader({
     <header className="relative shrink-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 px-3 pt-[calc(0.4rem+env(safe-area-inset-top,0px))] pb-2 flex items-center justify-between shadow-xs">
       {/* Brand */}
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-500/30">
+        <div className="rp-brand-mark">
           <LayoutGrid className="w-4 h-4" />
         </div>
-        <span className="text-sm font-black text-slate-900 tracking-tight">RoomPlan</span>
+        <span className="rp-brand-name">RoomPlan</span>
       </div>
 
       {/* 2D / 3D Segmented Switch */}
-      <div className="bg-slate-100 p-0.5 rounded-full flex items-center border border-slate-200/80">
+      <div className="rp-mode-switch">
         <button
-          onClick={() => setView3D(false)}
+          aria-pressed={!view3D} onClick={() => setView3D(false)}
           className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
             !view3D
               ? 'bg-white text-indigo-600 shadow-xs'
@@ -43,7 +43,7 @@ export function MobileHeader({
           2D
         </button>
         <button
-          onClick={() => setView3D(true)}
+          aria-pressed={view3D} onClick={() => setView3D(true)}
           className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
             view3D
               ? 'bg-indigo-600 text-white shadow-xs'
