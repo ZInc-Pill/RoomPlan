@@ -12,7 +12,8 @@ const make=(typeId:string,x:number,y:number,patch:Partial<PlacedItem>={}):Placed
 };
 function room(kind:string):PlanDocument {
   const doc:PlanDocument={walls:[],floors:[{id:'floor',points:[{x:0,y:0},{x:800,y:0},{x:800,y:550},{x:0,y:550}],color:'#ebe5da'}],comments:[],items:[]};
-  if(kind==='Small stairs')doc.items=['stair_symbol_straight','stair_symbol_l','stair_symbol_u','platform_steps_2','platform_steps_3','platform_steps_4'].map((id,i)=>make(id,150+(i%3)*230,150+Math.floor(i/3)*230,{...(i<3?{stairDirection:i===1?'down':'up'}:{})}));
+  if(kind==='Japanese islands')doc.items=['kit_japanese_divider','kit_breakfast_counter','kit_japanese_complete'].map((id,i)=>make(id,150+i*250,270,{...(i===1?{panelMaterial:'woven',panelState:'half'}:{})}));
+  else if(kind==='Small stairs')doc.items=['stair_symbol_straight','stair_symbol_l','stair_symbol_u','platform_steps_2','platform_steps_3','platform_steps_4'].map((id,i)=>make(id,150+(i%3)*230,150+Math.floor(i/3)*230,{...(i<3?{stairDirection:i===1?'down':'up'}:{})}));
   else if(kind==='Layering' || kind==='Coverage') {
     doc.floors.push({id:'overlap',points:[{x:180,y:200},{x:650,y:200},{x:650,y:500},{x:180,y:500}],color:'#b6c9d5'});
     doc.items=[make('stairs_straight',250,280,{stairDirection:'down'}),make('stairs_l',480,330,{stairDirection:'down',rotation:.4}),make('stairs_u',650,130)];
@@ -38,7 +39,7 @@ function room(kind:string):PlanDocument {
 function Fixture(){
   const [kind,setKind]=useState('Stairs'),[initial,setInitial]=useState(()=>room('Stairs')),[latest,setLatest]=useState(initial);
   return <div style={{height:'100dvh',display:'flex',flexDirection:'column'}}>
-    <header style={{display:'flex',flexWrap:'wrap',gap:8,padding:8}}>{['Small stairs','Coverage','Layering','Stairs','Islands','Openings','Shoji','Furniture','Railings'].map(k=><button key={k} style={{minHeight:44,padding:8}} onClick={()=>{setKind(k);const d=room(k);setInitial(d);setLatest(d);}}>{k}</button>)}<span>Isolated test room</span></header>
+    <header style={{display:'flex',flexWrap:'wrap',gap:8,padding:8}}>{['Japanese islands','Small stairs','Coverage','Layering','Stairs','Islands','Openings','Shoji','Furniture','Railings'].map(k=><button key={k} style={{minHeight:44,padding:8}} onClick={()=>{setKind(k);const d=room(k);setInitial(d);setLatest(d);}}>{k}</button>)}<span>Isolated test room</span></header>
     <div style={{flex:1,minHeight:0}}><App key={initial.items[0].id} embedded initial={initial} onDocument={setLatest}/></div>
     <output style={{fontSize:11,height:32,overflow:'auto'}}>{kind}: {latest.items.map(i=>`${i.typeId} (${Math.round(i.x)},${Math.round(i.y)}) ${i.railingStyle??''} ${i.tableFinish??''} ${i.seatMaterial??''} ${i.panelState??''} ${i.stairDirection??''} ${i.dividerStyle??''} elevation=${i.elevation??0}`).join(' · ')}</output>
   </div>;

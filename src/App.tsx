@@ -1,3 +1,4 @@
+import { ungroupJapaneseIsland } from './utils/japaneseIsland';
 import { isStair } from './utils/objectPack';
 import { PreviewBoundary } from './components/PreviewBoundary';
 import { browserProjectStore } from './utils/localProjectStore';
@@ -259,6 +260,12 @@ export default function App({ collaborators = [], onCursor, initial, external, r
     setSelectedFloorId(null);
   };
 
+  const handleUngroupIsland = (id:string) => {
+    if(readOnly)return;
+    const ids:[string,string]=[crypto.randomUUID(),crypto.randomUUID()];
+    handleSetItems(previous=>previous.flatMap(item=>item.id===id?ungroupJapaneseIsland(item,ids):[item]));
+    setSelectedItemIds([id]);
+  };
   const handleUpdateItem = (id: string, updates: Partial<PlacedItem>) => {
     handleSetItems(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
   };
@@ -888,7 +895,7 @@ export default function App({ collaborators = [], onCursor, initial, external, r
             <RailButton label="Layers" icon={ListTree} active={isLayersOpen} onClick={() => setIsLayersOpen(!isLayersOpen)} />
             {!view3D && <RailButton label="Tools" icon={Sliders} active={activePanel ? activePanel === 'tools' : ['PAN','RULER','COMMENT'].includes(mode)} onClick={() => setActivePanel(p => p === 'tools' ? null : 'tools')} />}
           </nav>}
-          {!isMobile && !readOnly && <PropertiesPanel
+          {!isMobile && !readOnly && <PropertiesPanel onUngroup={handleUngroupIsland}
             selectedItemIds={selectedItemIds}
             selectedWallId={selectedWallId}
             selectedFloorId={selectedFloorId}
@@ -942,7 +949,7 @@ export default function App({ collaborators = [], onCursor, initial, external, r
         onDeleteComment={handleDeleteComment}
       />
 
-      <MobileInspectorDrawer glideSnapMode={!view3D ? mobile2DSnapMode : dragSnapMode} setGlideSnapMode={!view3D ? setMobile2DSnapMode : setDragSnapMode} gridSize={getGridSize(gridOption)}
+      <MobileInspectorDrawer onUngroup={handleUngroupIsland} glideSnapMode={!view3D ? mobile2DSnapMode : dragSnapMode} setGlideSnapMode={!view3D ? setMobile2DSnapMode : setDragSnapMode} gridSize={getGridSize(gridOption)}
         isOpen={isInspectorOpen}
         onClose={() => setIsInspectorOpen(false)}
         selectedItemIds={selectedItemIds}

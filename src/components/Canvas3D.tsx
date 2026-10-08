@@ -1,3 +1,5 @@
+import { isJapaneseIsland } from '../utils/japaneseIsland';
+import { JapaneseIsland3D } from './JapaneseIsland3D';
 import { isStairSymbol,isPlatformSteps,platformCount } from '../utils/smallStairs';
 import { isSeat,isTV,isCoffee,isRailing } from '../utils/furniturePack';
 import { FurniturePack3D } from './FurniturePack';
@@ -674,7 +676,8 @@ function Item3D({
           roughness={roughness} metalness={metalness} selected={isSelected} hovered={isHovered} />
       )}
 
-      {typeInfo.shape === 'kitchen_island' && <Island3D item={item} w={w} h={h} d={d} color={color} roughness={roughness} metalness={metalness} map={itemTexture} />}
+      {isJapaneseIsland(item) && <JapaneseIsland3D item={item}/> }
+      {typeInfo.shape === 'kitchen_island' && !isJapaneseIsland(item) && <Island3D item={item} w={w} h={h} d={d} color={color} roughness={roughness} metalness={metalness} map={itemTexture} />}
       {isPlatformSteps(item) && <PlatformSteps3D count={platformCount(item)} w={w} h={h} d={d} color={color} roughness={roughness} metalness={metalness} map={itemTexture}/> }
       {typeInfo.shape === 'stairs' && <Stairs3D item={item} w={w} h={h} d={d} color={color} roughness={roughness} metalness={metalness} map={itemTexture} />}
       {isShoji(item) && <Shoji3D item={item} w={w} h={h} d={d}/> }

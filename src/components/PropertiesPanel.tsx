@@ -1,3 +1,4 @@
+import { isJapaneseIsland } from '../utils/japaneseIsland';
 import { isStairSymbol } from '../utils/smallStairs';
 import { isSeat,isTV,isCoffee,isRailing } from '../utils/furniturePack';
 import { isShoji } from '../utils/shoji';
@@ -16,6 +17,7 @@ interface PropertiesPanelProps {
   items: PlacedItem[];
   walls: Wall[];
   floors: Floor[];
+  onUngroup?: (id:string)=>void;
   onUpdateItem: (id: string, updates: Partial<PlacedItem>) => void;
   onUpdateWall: (id: string, updates: Partial<Wall>) => void;
   onUpdateFloor: (id: string, updates: Partial<Floor>) => void;
@@ -39,6 +41,7 @@ export function PropertiesPanel({
   items,
   walls,
   floors,
+  onUngroup,
   onUpdateItem,
   onUpdateWall,
   onUpdateFloor,
@@ -288,7 +291,7 @@ export function PropertiesPanel({
           </div>
         )}
 
-        {selectedItem && <ObjectPackControls item={selectedItem} onUpdate={onUpdateItem} />}
+        {selectedItem && <ObjectPackControls item={selectedItem} onUpdate={onUpdateItem} onUngroup={onUngroup} />}
         {selectedItem && itemType && (
           <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
             <div>
@@ -438,7 +441,7 @@ export function PropertiesPanel({
             </div>
 
             {/* Item Material & Finish Picker */}
-            {!isShoji(selectedItem) && !isSeat(selectedItem) && !isTV(selectedItem) && !isCoffee(selectedItem) && !isRailing(selectedItem) && <div className="pt-2 border-t border-slate-100">
+            {!isJapaneseIsland(selectedItem) && !isShoji(selectedItem) && !isSeat(selectedItem) && !isTV(selectedItem) && !isCoffee(selectedItem) && !isRailing(selectedItem) && <div className="pt-2 border-t border-slate-100">
               <MaterialPicker
                 mode="item"
                 upholstery={selectedItem.typeId.startsWith("liv_sofa_") || ["bed_single", "bed_queen", "bed_king"].includes(selectedItem.typeId)}

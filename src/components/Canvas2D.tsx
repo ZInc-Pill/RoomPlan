@@ -1,3 +1,5 @@
+import { isJapaneseIsland } from '../utils/japaneseIsland';
+import { JapaneseIslandPlan } from './JapaneseIslandPlan';
 import { SmallStairsPlan } from './SmallStairsPlan';
 import { isStairSymbol,isPlatformSteps } from '../utils/smallStairs';
 import { isSeat,isTV,isCoffee,isRailing } from '../utils/furniturePack';
@@ -1101,13 +1103,13 @@ export function Canvas2D({
             data-scene-entity="object"
             data-mobile-drag-object={isMobile && mode === 'SELECT' ? '' : undefined}
             onPointerDown={(e) => handleItemPointerDown(e, item)}
-            className={`absolute shadow-sm transition-shadow pointer-events-auto ${!isMobile && !['door', 'window','railing','corner_railing'].includes(typeInfo.shape) ? 'overflow-hidden' : ''}`}
+            className={`absolute shadow-sm transition-shadow pointer-events-auto ${!isMobile && !isJapaneseIsland(item) && !['door', 'window','railing','corner_railing'].includes(typeInfo.shape) ? 'overflow-hidden' : ''}`}
             style={{
               left: item.x,
               top: item.y,
               width: w,
               height: d,
-              backgroundColor: (isStairSymbol(item)||isPlatformSteps(item)||isSeat(item)||isTV(item)||isCoffee(item)||isRailing(item)) ? 'transparent' : typeInfo.shape !== 'door' && typeInfo.shape !== 'window' && typeInfo.shape !== 'corner_railing' ? (typeInfo.shape === 'kitchen_island' ? item.color ?? typeInfo.color : typeInfo.color) : 'transparent',
+              backgroundColor: (isJapaneseIsland(item)||isStairSymbol(item)||isPlatformSteps(item)||isSeat(item)||isTV(item)||isCoffee(item)||isRailing(item)) ? 'transparent' : typeInfo.shape !== 'door' && typeInfo.shape !== 'window' && typeInfo.shape !== 'corner_railing' ? (typeInfo.shape === 'kitchen_island' ? item.color ?? typeInfo.color : typeInfo.color) : 'transparent',
               transform: `translate(-50%, -50%) rotate(${itemRot}rad)`,
               borderRadius: (typeInfo.shape === 'cylinder'||['coffee_round','coffee_oval','stool_backless'].includes(item.typeId)) ? '50%' : typeInfo.shape === 'door' ? '0' : '4px',
               border: (isStairSymbol(item)||isRailing(item)||isTV(item)) ? 'none' : isSelected ? '2px solid #186454' : (typeInfo.shape === 'door' ? 'none' : '1px solid rgba(0,0,0,0.2)'),
@@ -1183,7 +1185,8 @@ export function Canvas2D({
                 <div className="absolute top-1/2 left-1 right-1 bottom-1 bg-white/20 border border-black/10"></div>
               </>
             )}
-            {typeInfo.shape === 'kitchen_island' && (
+            {isJapaneseIsland(item) && <JapaneseIslandPlan item={item}/> }
+            {typeInfo.shape === 'kitchen_island' && !isJapaneseIsland(item) && (
               <IslandPlan item={item} />
             )}
             {(isStairSymbol(item)||isPlatformSteps(item)) && <SmallStairsPlan item={item}/> }

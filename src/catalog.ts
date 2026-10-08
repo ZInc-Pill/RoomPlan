@@ -81,6 +81,9 @@ export const ITEM_CATALOG: ItemType[] = [
   { id: 'platform_steps_2', name: 'Platform steps · 2D + 3D (2-step)', category: 'architecture', width: 120, depth: 56, height: 32, color: '#c7b69e', shape: 'platform_steps', icon: 'ChartNoAxesColumnIncreasing' },
   { id: 'platform_steps_3', name: 'Platform steps · 2D + 3D (3-step)', category: 'architecture', width: 120, depth: 84, height: 48, color: '#c7b69e', shape: 'platform_steps', icon: 'ChartNoAxesColumnIncreasing' },
   { id: 'platform_steps_4', name: 'Platform steps · 2D + 3D (4-step)', category: 'architecture', width: 120, depth: 112, height: 64, color: '#c7b69e', shape: 'platform_steps', icon: 'ChartNoAxesColumnIncreasing' },
+  { id: 'kit_japanese_divider', name: 'Kitchen island · Japanese divider', category: 'kitchen', width: 200, depth: 90, height: 90, color: '#e4ded3', shape: 'kitchen_island', icon: 'Columns3' },
+  { id: 'kit_breakfast_counter', name: 'Kitchen island · Breakfast counter', category: 'kitchen', width: 200, depth: 100, height: 90, color: '#e4ded3', shape: 'kitchen_island', icon: 'Columns3' },
+  { id: 'kit_japanese_complete', name: 'Kitchen island · Complete set', category: 'kitchen', width: 200, depth: 100, height: 90, color: '#e4ded3', shape: 'kitchen_island', icon: 'Columns3' },
   // Decorative stairs: height is the positive rise/descent magnitude.
   { id: 'stairs_straight', name: 'Stairs (Straight)', category: 'architecture', width: 110, depth: 360, height: 280, color: '#c7b69e', shape: 'stairs', icon: 'ChartNoAxesColumnIncreasing' },
   { id: 'stairs_l', name: 'Stairs (L-shaped)', category: 'architecture', width: 280, depth: 320, height: 280, color: '#c7b69e', shape: 'stairs', icon: 'CornerDownRight' },

@@ -1,3 +1,4 @@
+import { isJapaneseIsland } from '../utils/japaneseIsland';
 import { isStairSymbol } from '../utils/smallStairs';
 import { isSeat,isTV,isCoffee,isRailing } from '../utils/furniturePack';
 import { isShoji } from '../utils/shoji';
@@ -23,6 +24,7 @@ interface MobileInspectorDrawerProps {
   items: PlacedItem[];
   walls: Wall[];
   floors: Floor[];
+  onUngroup?: (id:string)=>void;
   onUpdateItem: (id: string, updates: Partial<PlacedItem>) => void;
   onUpdateWall: (id: string, updates: Partial<Wall>) => void;
   onUpdateFloor: (id: string, updates: Partial<Floor>) => void;
@@ -53,6 +55,7 @@ export function MobileInspectorDrawer({
   items,
   walls,
   floors,
+  onUngroup,
   onUpdateItem,
   onUpdateWall,
   onUpdateFloor,
@@ -103,7 +106,7 @@ export function MobileInspectorDrawer({
               if (selectedItem.wallId) onUpdateItem(selectedItem.id, { wallId: undefined, wallOffset: undefined });
               else { const attached = attachNearestOpening(selectedItem, walls); if (attached) onUpdateItem(selectedItem.id, attached); }
             }}>{selectedItem.wallId ? 'Detach from wall' : 'Attach to nearest wall'}</button>}
-            {selectedItem && <ObjectPackControls item={selectedItem} onUpdate={onUpdateItem} />}
+            {selectedItem && <ObjectPackControls item={selectedItem} onUpdate={onUpdateItem} onUngroup={onUngroup} />}
             {selectedItem && (
               <>
                 <div className="space-y-1.5">
@@ -147,7 +150,7 @@ export function MobileInspectorDrawer({
                 {!isStair(selectedItem) && !isStairSymbol(selectedItem) && <label className="block text-xs font-semibold">Elevation (cm)<input aria-label="Elevation in centimeters" type="number" min="0" step="5" value={selectedItem.elevation ?? 0} onChange={e => onUpdateItem(selectedItem.id, { elevation: Math.max(0, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>}
                 {!isStairSymbol(selectedItem) && <label className="block text-xs font-semibold">{isStair(selectedItem) ? (selectedItem.stairDirection === 'down' ? 'Descent' : 'Rise') : 'Height'} (cm)<input aria-label={isStair(selectedItem) ? "Rise or descent in centimeters" : "Height in centimeters"} type="number" min="1" value={selectedItem.height ?? itemType?.height ?? 100} onChange={e => onUpdateItem(selectedItem.id, { height: Math.max(1, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>}
                 {/* Item Material & Finish */}
-                {!isShoji(selectedItem) && !isSeat(selectedItem) && !isTV(selectedItem) && !isCoffee(selectedItem) && !isRailing(selectedItem) && <div className="pt-2 border-t border-slate-100">
+                {!isJapaneseIsland(selectedItem) && !isShoji(selectedItem) && !isSeat(selectedItem) && !isTV(selectedItem) && !isCoffee(selectedItem) && !isRailing(selectedItem) && <div className="pt-2 border-t border-slate-100">
                   <MaterialPicker
                     mode="item"
                 upholstery={selectedItem.typeId.startsWith("liv_sofa_") || ["bed_single", "bed_queen", "bed_king"].includes(selectedItem.typeId)}
