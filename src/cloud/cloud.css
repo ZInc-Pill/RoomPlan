@@ -319,3 +319,12 @@
   .cloud-dialog .cloud-member select { flex: 1; min-width: 0; }
   .cloud-grid { grid-template-columns: minmax(0,1fr); }
 }
+/* Keep the save state and controls readable when the cloud header wraps. */
+.cloud-bar button:disabled { opacity: .5; cursor: default; }
+.cloud-save-time { color: var(--rp-muted); white-space: nowrap; }
+.cloud-error button { min-height: 44px; padding: 8px; border: 1px solid currentColor; border-radius: 8px; }
+@media (max-width: 640px) {
+  .cloud-bar strong { flex: 1 1 calc(100% - 90px); max-width: none; min-width: 0; }
+  .cloud-save-time { order: 6; font-size: 10px; }
+  .cloud-bar > span { flex: 1 1 40%; width: auto; }
+}

@@ -21,6 +21,7 @@ import {
   type Role,
 } from "./api";
 import { ProjectSync } from "./ProjectSync";
+import { CloudRecovery, type Recovery } from "./CloudRecovery";
 import { same } from "./patches";
 import { readSavedProject } from "../hooks/useProjectAutosave";
 import "./cloud.css";
@@ -204,7 +205,7 @@ function SignedWorkspace({ user }: { user: User }) {
         <button onClick={() => go()}>Back to projects</button>
       </main>
     );
-  return id ? <ProjectLoader id={id} user={user} /> : <Dashboard user={user} />;
+  return id ? <ProjectLoader key={id} id={id} user={user} /> : <Dashboard user={user} />;
 }
 export function Dashboard({ user }: { user: User }) {
   const [projects, setProjects] = useState<ProjectCard[]>([]),
@@ -416,7 +417,7 @@ function ProjectLoader({ id, user }: { id: string; user: User }) {
       </main>
     );
   return (
-    <CloudEditor project={loaded.project} role={loaded.role} user={user} />
+    <CloudEditor key={loaded.project.id} project={loaded.project} role={loaded.role} user={user} />
   );
 }
 function GuestLoader({ token }: { token: string }) {
@@ -427,9 +428,9 @@ function GuestLoader({ token }: { token: string }) {
     return () => { active = false; };
   }, [token]);
   if (!loaded) return <main className="cloud-page"><h1>Shared room plan</h1><p role={error ? "alert" : "status"}>{error || "Opening shared project…"}</p><button onClick={() => go()}>Open RoomPlan</button></main>;
-  return <CloudEditor project={loaded.project} role={loaded.role} guest={token} expiresAt={loaded.expiresAt} />;
+  return <CloudEditor key={loaded.project.id} project={loaded.project} role={loaded.role} guest={token} expiresAt={loaded.expiresAt} />;
 }
-function CloudEditor({
+export function CloudEditor({
   project,
   role,
   user,
@@ -445,7 +446,7 @@ function CloudEditor({
   const [, render] = useState(0),
     [sharing, setSharing] = useState(false),
     [blocked, setBlocked] = useState(false),
-    [recovery, setRecovery] = useState(false),
+    [recovery, setRecovery] = useState<Recovery[]>([]),
     [accessEnded, setAccessEnded] = useState(false),
     [presenceStatus, setPresenceStatus] = useState("Connecting collaboration…"),
     [peers, setPeers] = useState<Collaborator[]>([]);
@@ -461,6 +462,18 @@ function CloudEditor({
     );
   const sync = syncRef.current,
     key = `roomplan.recovery.${user?.id ?? "guest"}.${project.id}.${guest ? guest.slice(0, 24) : "member"}`;
+  const recoveryStore = useRef<CloudRecovery | null>(null);
+  const [recoveryError, setRecoveryError] = useState('');
+  useEffect(() => {
+    try {
+      const store = new CloudRecovery(localStorage, key, session.current);
+      recoveryStore.current = store;
+      setRecovery(store.pending());
+      sync.checkpoint = () => { store.checkpoint(sync); setRecoveryError(store.error); };
+      sync.checkpoint();
+    } catch { setRecoveryError('Local recovery storage is unavailable. Export your work before closing.'); }
+    return () => { sync.checkpoint?.(); sync.checkpoint = undefined; };
+  }, [sync, key]);
   const onCursor = useCallback((cursor: CollaboratorCursor | null) => presence.current?.point(cursor), []);
   const onDocument = useCallback(
     (doc: any, editing: boolean) => {
@@ -470,12 +483,16 @@ function CloudEditor({
   );
   useEffect(() => {
     sync.disposed = false;
-    try {
-      setRecovery(!!localStorage.getItem(key));
-    } catch {}
+    const online = () => sync.setOnline(navigator.onLine);
+    online();
+    window.addEventListener('online', online);
+    window.addEventListener('offline', online);
+    const checkpoint = () => sync.checkpoint?.();
+    window.addEventListener('pagehide', checkpoint);
     const pointers = new Set<number>();
     const down = (e: PointerEvent) => {
       if (sync.role === "viewer") return;
+      if (!(e.target instanceof Element) || !e.target.closest('.cloud-canvas')) return;
       pointers.add(e.pointerId);
       sync.setEditing(true);
     };
@@ -512,9 +529,9 @@ function CloudEditor({
         render((n) => n + 1);
       } catch (e) {
         if (sync.disposed) return;
-        setBlocked(true);
-        if ((e as any).code === "42501" || (e as any).code === "PGRST116") setAccessEnded(true);
-        sync.fail(e, true);
+        if (["42501", "PGRST116"].includes((e as any).code)) {
+          setBlocked(true); setAccessEnded(true); sync.fail(e);
+        } else setPresenceStatus('Cloud connection interrupted. Your edits are retained.');
       }
     };
     const channel = guest ? null : requireCloud()
@@ -543,9 +560,8 @@ function CloudEditor({
       try {
         const result = check(await requireCloud().rpc("rp_collaborate", { p_project: project.id, p_session: session.current, p_revision: sync.base.revision, p_cursor: cursor, p_token: guest ?? null }));
         if (sync.disposed) return;
-        const statusChanged = sync.role !== result.role || (!sync.conflict && !!sync.error);
+        const statusChanged = sync.role !== result.role;
         sync.role = result.role;
-        if (!sync.conflict) sync.error = "";
         setBlocked(false);
         setPresenceStatus("Live collaboration");
         const nextPeers = safePeers(result.peers);
@@ -574,6 +590,10 @@ function CloudEditor({
     // Polling covers websocket disconnects and access revocation; cursor updates batch revision checks.
     const interval = setInterval(() => { if (!document.hidden) void refresh(); }, 5000);
     return () => {
+      sync.checkpoint?.();
+      window.removeEventListener('online', online);
+      window.removeEventListener('offline', online);
+      window.removeEventListener('pagehide', checkpoint);
       sync.dispose();
       clearInterval(interval);
       loop.stop();
@@ -588,15 +608,6 @@ function CloudEditor({
       window.removeEventListener("beforeunload", unload);
     };
   }, [sync]);
-  useEffect(() => {
-    try {
-      if (sync.dirty)
-        localStorage.setItem(
-          key,
-          JSON.stringify({ version: 1, document: sync.draft }),
-        );
-    } catch {}
-  });
   useEffect(() => {
     if (!guest || !expiresAt) return;
     const deadline = Date.parse(expiresAt);
@@ -624,13 +635,19 @@ function CloudEditor({
         </button>
         <strong>{sync.base.title}</strong>
         {guest && <small>Guest · {sync.role === "viewer" ? "Can view" : "Can edit"}{expiresAt ? ` · Ends ${new Date(expiresAt).toLocaleString()}` : " · No expiry"}</small>}
-        <span>
+        <span role="status" aria-live="polite">
           {sync.role === "viewer"
             ? "View only"
             : blocked
               ? "Editing unavailable"
               : sync.status}
         </span>
+        {sync.role !== 'viewer' && <>
+          {sync.lastSavedAt && <small className="cloud-save-time">Last confirmed: {new Date(sync.lastSavedAt).toLocaleTimeString()}</small>}
+          <button disabled={blocked || sync.offline || sync.saving || (!sync.dirty && !sync.error)} onClick={() => void sync.saveNow()}>
+            {sync.error ? 'Retry save' : 'Save now'}
+          </button>
+        </>}
         <button onClick={() => downloadDocument(sync.draft, project.title)}>
           Export
         </button>
@@ -640,32 +657,23 @@ function CloudEditor({
       </header>
       <div className="collaboration-people" role="status">{presenceStatus}<small> · Cursors appear when others move inside the same 2D or 3D view.</small></div>
       {peers.length > 0 && <div className="collaboration-people" aria-label={`${peers.length} other people in this project`}>{peers.slice(0,4).map(p => <span key={p.id} className="collaboration-person" style={{color:cursorColor(p.id)}}>{p.name}</span>)}{peers.length>4 && <small>+{peers.length-4} more</small>}</div>}
-      {recovery && (
-        <div className="cloud-error">
-          A recovery copy exists on this device.
-          <button
-            onClick={() => {
-              const raw = localStorage.getItem(key);
-              if (raw) {
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(
-                  new Blob([raw], { type: "application/json" }),
-                );
-                a.download = "RoomPlan-recovery.json";
-                a.click();
-                setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-              }
-            }}
-          >
-            Download recovery
-          </button>
-          <button onClick={() => setRecovery(false)}>Dismiss</button>
-        </div>
-      )}
+      {recoveryError && <div role="alert" className="cloud-error">{recoveryError}</div>}
+      {recovery.map(copy => <div className="cloud-error" key={copy.key}>
+        Another local draft is available on this device.
+        {copy.base && sync.role !== 'viewer' && <button disabled={sync.dirty || sync.saving || blocked} onClick={() => {
+          if (sync.restore(copy.base!, copy.document)) {
+            recoveryStore.current?.markRestored(copy.key);
+            sync.checkpoint?.();
+            setRecovery(copies => copies.filter(c => c.key !== copy.key));
+          }
+        }}>Restore draft safely</button>}
+        <button onClick={() => downloadDocument(copy.document, project.title + ' recovery')}>Download recovery</button>
+        <button onClick={() => setRecovery(copies => copies.filter(c => c.key !== copy.key))}>Dismiss</button>
+      </div>)}
       {sync.error && (
         <div role="alert" className="cloud-error">
           {sync.error}
-          <button onClick={() => void sync.retry()}>Retry</button>
+          <button disabled={sync.role === "viewer" || blocked || sync.saving || sync.offline} onClick={() => void sync.saveNow()}>Retry save</button>
           {!guest && <button
             onClick={async () => {
               try {
