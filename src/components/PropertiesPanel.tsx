@@ -1,3 +1,6 @@
+import { isStairSymbol } from '../utils/smallStairs';
+import { isSeat,isTV,isCoffee,isRailing } from '../utils/furniturePack';
+import { isShoji } from '../utils/shoji';
 import { isStair } from '../utils/objectPack';
 import { ObjectPackControls } from './ObjectPackControls';
 import React from 'react';
@@ -361,7 +364,7 @@ export function PropertiesPanel({
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-slate-400 w-10 uppercase">{isStair(selectedItem) ? 'Length' : 'Depth'}</span>
                 <input 
-                  type="range" min="10" max="500" step="1"
+                  type="range" min="1" max="500" step="1"
                   value={Math.round(Number.isFinite(selectedItem.depth) ? selectedItem.depth! : (itemType.depth ?? 60))}
                   onChange={(e) => {
                     const val = parseFloat(e.target.value);
@@ -371,7 +374,7 @@ export function PropertiesPanel({
                 />
                 <input 
                   type="number"
-                  min="10" max="1000"
+                  min="1" max="1000"
                   value={Math.round(Number.isFinite(selectedItem.depth) ? selectedItem.depth! : (itemType.depth ?? 60))}
                   onChange={(e) => {
                     const val = parseFloat(e.target.value);
@@ -383,7 +386,7 @@ export function PropertiesPanel({
                 />
               </div>
 
-              <div className="flex items-center gap-2">
+              {!isStairSymbol(selectedItem) && <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-slate-400 w-10 uppercase">{isStair(selectedItem) ? (selectedItem.stairDirection === 'down' ? 'Descent' : 'Rise') : 'Height'}</span>
                 <input 
                   type="range" min="10" max="500" step="1"
@@ -406,9 +409,9 @@ export function PropertiesPanel({
                   }}
                   className="w-14 px-1.5 py-1 text-xs font-mono font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-md text-right focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
-              </div>
+              </div>}
 
-              {!isStair(selectedItem) && <div className="flex items-center gap-2">
+              {!isStair(selectedItem) && !isStairSymbol(selectedItem) && <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-slate-400 w-10 uppercase" title="Height from floor">Elev.</span>
                 <input 
                   type="range" min="0" max="300" step="1"
@@ -435,7 +438,7 @@ export function PropertiesPanel({
             </div>
 
             {/* Item Material & Finish Picker */}
-            <div className="pt-2 border-t border-slate-100">
+            {!isShoji(selectedItem) && !isSeat(selectedItem) && !isTV(selectedItem) && !isCoffee(selectedItem) && !isRailing(selectedItem) && <div className="pt-2 border-t border-slate-100">
               <MaterialPicker
                 mode="item"
                 upholstery={selectedItem.typeId.startsWith("liv_sofa_") || ["bed_single", "bed_queen", "bed_king"].includes(selectedItem.typeId)}
@@ -448,7 +451,7 @@ export function PropertiesPanel({
                   onUpdateItem(selectedItem.id, { color });
                 }}
               />
-            </div>
+            </div>}
 
             <div className="grid grid-cols-3 gap-2 pt-2">
               <button 

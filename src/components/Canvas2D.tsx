@@ -1,4 +1,12 @@
+import { SmallStairsPlan } from './SmallStairsPlan';
+import { isStairSymbol,isPlatformSteps } from '../utils/smallStairs';
+import { isSeat,isTV,isCoffee,isRailing } from '../utils/furniturePack';
+import { FurniturePackPlan } from './FurniturePackPlan';
+import { isShoji } from '../utils/shoji';
+import { ShojiPlan } from './ShojiPanels';
 import { StairPlan, IslandPlan } from './ObjectPack2D';
+import { DownStairDrawing, DownStairTargets, StairFloorMask } from './DownStairs2D';
+import { isDownStair, stairFloorOwners } from '../utils/downStairs2D';
 import { isGlassDoor } from '../utils/objectPack';
 import { MobileControlPortal, RailButton } from './MobileWorkspace';
 import React, { useRef, useState, useEffect, useCallback } from 'react';
@@ -190,6 +198,7 @@ export function Canvas2D({
   const openingPreview = isMobile ? null : desktopOpeningPreview;
   const draftsById = new Map(mobileDrag.visual?.items.map(item => [item.id, item]) ?? []);
   const renderedItems = mobileDrag.visual ? items.map(item => draftsById.get(item.id) ?? item) : items;
+  const stairOwners = stairFloorOwners(renderedItems, floors);
   useEffect(() => {
     if (!isMobile) return;
     const reset = () => mobileOwnership.current.clear();
@@ -578,10 +587,15 @@ export function Canvas2D({
             </marker>
             <SvgFloorPatterns />
           </defs>
+
+        <DownStairDrawing items={renderedItems} />
+        <DownStairTargets items={renderedItems.filter(i=>!stairOwners.get(i.id))} selected={selectedItemIds} mobile={isMobile} enabled={mode === 'SELECT'} onDown={handleItemPointerDown} />
         {/* Floors */}
-        {floors.map(floor => (
+        {floors.map((floor, floorIndex) => (
+          <React.Fragment key={floor.id}>
+          <StairFloorMask id={`down-stair-floor-mask-${floorIndex}`} items={renderedItems.filter(i=>stairOwners.get(i.id)===floor.id)} />
           <g 
-            key={floor.id}
+            key={floor.id} mask={`url(#down-stair-floor-mask-${floorIndex})`}
             onPointerEnter={() => setHoveredFloorId(floor.id)}
             onPointerLeave={() => setHoveredFloorId(null)}
           >
@@ -591,7 +605,7 @@ export function Canvas2D({
               fill={floor.material ? `url(#pattern-${floor.material})` : (floor.color || '#e2e8f0')}
               stroke={floor.id === selectedFloorId ? "#186454" : "#94a3b8"}
               strokeWidth={floor.id === selectedFloorId ? 3 : 1}
-              opacity={0.88}
+              opacity={1}
               onPointerDown={(e) => handleFloorPointerDown(e, floor)}
               className={(mode === 'SELECT' || mode === 'DRAW_FLOOR') ? 'pointer-events-auto cursor-pointer' : 'pointer-events-auto'}
             />
@@ -609,6 +623,8 @@ export function Canvas2D({
               </g>
             )}
           </g>
+          <DownStairTargets items={renderedItems.filter(i=>stairOwners.get(i.id)===floor.id)} selected={selectedItemIds} mobile={isMobile} enabled={mode === 'SELECT'} onDown={handleItemPointerDown} />
+          </React.Fragment>
         ))}
 
         {/* Placed Walls */}
@@ -1068,7 +1084,7 @@ export function Canvas2D({
       </svg>
 
       {/* Items */}
-      {renderedItems.map(item => {
+      {renderedItems.filter(item => !isDownStair(item)).map(item => {
         const typeInfo = ITEM_CATALOG.find(i => i.id === item.typeId);
         if (!typeInfo) return null;
         
@@ -1085,18 +1101,18 @@ export function Canvas2D({
             data-scene-entity="object"
             data-mobile-drag-object={isMobile && mode === 'SELECT' ? '' : undefined}
             onPointerDown={(e) => handleItemPointerDown(e, item)}
-            className={`absolute shadow-sm transition-shadow pointer-events-auto ${!isMobile && !['door', 'window'].includes(typeInfo.shape) ? 'overflow-hidden' : ''}`}
+            className={`absolute shadow-sm transition-shadow pointer-events-auto ${!isMobile && !['door', 'window','railing','corner_railing'].includes(typeInfo.shape) ? 'overflow-hidden' : ''}`}
             style={{
               left: item.x,
               top: item.y,
               width: w,
               height: d,
-              backgroundColor: typeInfo.shape !== 'door' && typeInfo.shape !== 'window' && typeInfo.shape !== 'corner_railing' ? (typeInfo.shape === 'kitchen_island' ? item.color ?? typeInfo.color : typeInfo.color) : 'transparent',
+              backgroundColor: (isStairSymbol(item)||isPlatformSteps(item)||isSeat(item)||isTV(item)||isCoffee(item)||isRailing(item)) ? 'transparent' : typeInfo.shape !== 'door' && typeInfo.shape !== 'window' && typeInfo.shape !== 'corner_railing' ? (typeInfo.shape === 'kitchen_island' ? item.color ?? typeInfo.color : typeInfo.color) : 'transparent',
               transform: `translate(-50%, -50%) rotate(${itemRot}rad)`,
-              borderRadius: typeInfo.shape === 'cylinder' ? '50%' : typeInfo.shape === 'door' ? '0' : '4px',
-              border: isSelected ? '2px solid #186454' : (typeInfo.shape === 'door' ? 'none' : '1px solid rgba(0,0,0,0.2)'),
+              borderRadius: (typeInfo.shape === 'cylinder'||['coffee_round','coffee_oval','stool_backless'].includes(item.typeId)) ? '50%' : typeInfo.shape === 'door' ? '0' : '4px',
+              border: (isStairSymbol(item)||isRailing(item)||isTV(item)) ? 'none' : isSelected ? '2px solid #186454' : (typeInfo.shape === 'door' ? 'none' : '1px solid rgba(0,0,0,0.2)'),
               cursor: mode === 'SELECT' ? (isDraggingItem(item.id) ? 'grabbing' : 'grab') : 'default',
-              boxShadow: isSelected ? '0 0 0 4px rgba(99, 102, 241, 0.25), 0 10px 15px -3px rgba(0,0,0,0.1)' : (typeInfo.shape === 'door' ? 'none' : '0 2px 4px rgba(0,0,0,0.05)'),
+              boxShadow: isSelected ? '0 0 0 4px rgba(99, 102, 241, 0.25), 0 10px 15px -3px rgba(0,0,0,0.1)' : (typeInfo.shape === 'door'||isStairSymbol(item) ? 'none' : '0 2px 4px rgba(0,0,0,0.05)'),
               transition: 'box-shadow 0.2s ease-out, border 0.2s ease-out',
               zIndex: isSelected ? 100 : 10
             }}
@@ -1120,7 +1136,7 @@ export function Canvas2D({
             {typeInfo.shape === 'table' && (
               <div className="absolute inset-1 border border-black/10 rounded-sm"></div>
             )}
-            {typeInfo.shape === 'door' && !isGlassDoor(item) && (
+            {typeInfo.shape === 'door' && !isGlassDoor(item) && !isShoji(item) && (
               <div className="relative w-full h-full bg-white">
                 {/* Door frame indicators */}
                 <div className="absolute inset-y-0 left-0 w-1 bg-slate-400 pointer-events-none" />
@@ -1139,8 +1155,9 @@ export function Canvas2D({
                 {isSelected && <div className="absolute inset-0 border-2 border-[#186454] pointer-events-none" />}
               </div>
             )}
+            {isShoji(item) && <ShojiPlan item={item} w={itemW} d={itemD}/> }
             {isGlassDoor(item) && <div className="absolute inset-0 bg-sky-100/70 border-2" style={{borderColor:item.frameColor??'#46534b'}}>{item.typeId!=='door_glass_single' && <div className="absolute left-1/2 h-full border-l-2" style={{borderColor:item.frameColor??'#46534b'}}/>}</div>}
-            {typeInfo.shape === 'window' && (
+            {typeInfo.shape === 'window' && !isShoji(item) && (
               <div className="w-full h-full flex flex-col justify-center border-y-[3px] border-slate-300 bg-white" style={{borderColor:item.frameColor??'#c6cfc4'}}>
                 <div className="w-full h-1.5 bg-cyan-400/50"></div>
               </div>
@@ -1169,6 +1186,7 @@ export function Canvas2D({
             {typeInfo.shape === 'kitchen_island' && (
               <IslandPlan item={item} />
             )}
+            {(isStairSymbol(item)||isPlatformSteps(item)) && <SmallStairsPlan item={item}/> }
             {typeInfo.shape === 'stairs' && <StairPlan item={item} w={item.width??typeInfo.width} d={item.depth??typeInfo.depth} h={item.height??typeInfo.height} />}
             {typeInfo.shape === 'kitchen_sink' && (
               <>
@@ -1188,15 +1206,7 @@ export function Canvas2D({
             {typeInfo.shape === 'room_divider' && (
               <div className="absolute inset-y-0 left-1/2 w-0.5 bg-black/30 -translate-x-1/2"></div>
             )}
-            {typeInfo.shape === 'railing' && (
-              <div className="absolute inset-y-0 left-1/2 w-0.5 bg-black/50 -translate-x-1/2"></div>
-            )}
-            {typeInfo.shape === 'corner_railing' && (
-              <>
-                <div className="absolute inset-y-0 left-0 w-0.5 bg-slate-700"></div>
-                <div className="absolute top-0 inset-x-0 h-0.5 bg-slate-700"></div>
-              </>
-            )}
+            {(isSeat(item)||isTV(item)||isCoffee(item)||isRailing(item)) && <FurniturePackPlan item={item} w={itemW} h={item.height??typeInfo.height} d={itemD}/> }
             {typeInfo.shape === 'rug' && (
               <div className="absolute inset-2 border-2 border-dashed border-black/10 rounded-sm"></div>
             )}

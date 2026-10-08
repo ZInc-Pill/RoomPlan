@@ -1,3 +1,6 @@
+import { isStairSymbol } from '../utils/smallStairs';
+import { isSeat,isTV,isCoffee,isRailing } from '../utils/furniturePack';
+import { isShoji } from '../utils/shoji';
 import { isStair } from '../utils/objectPack';
 import { ObjectPackControls } from './ObjectPackControls';
 import React, { useState, useRef, useEffect } from 'react';
@@ -110,9 +113,9 @@ export function MobileInspectorDrawer({
                   </div>
                   <input
                     type="range" aria-label="Width in centimeters"
-                    min="30"
+                    min={isSeat(selectedItem)||isTV(selectedItem)||isCoffee(selectedItem)||isRailing(selectedItem)?1:30}
                     max="400"
-                    step="5"
+                    step={isSeat(selectedItem)||isTV(selectedItem)||isCoffee(selectedItem)||isRailing(selectedItem)?1:5}
                     value={Math.round(Number.isFinite(selectedItem.width) ? selectedItem.width! : (itemType?.width ?? 90))}
                     onChange={(e) => {
                       const val = Number(e.target.value);
@@ -129,9 +132,9 @@ export function MobileInspectorDrawer({
                   </div>
                   <input
                     type="range" aria-label={isStair(selectedItem) ? "Length in centimeters" : "Depth in centimeters"}
-                    min={isOpening(selectedItem) ? 1 : 30}
+                    min={(isOpening(selectedItem)||isTV(selectedItem)||selectedItem.typeId==='bal_railing') ? 1 : 30}
                     max="400"
-                    step="5"
+                    step={isOpening(selectedItem)||isSeat(selectedItem)||isTV(selectedItem)||isCoffee(selectedItem)||isRailing(selectedItem)?1:5}
                     value={Math.round(Number.isFinite(selectedItem.depth) ? selectedItem.depth! : (itemType?.depth ?? 60))}
                     onChange={(e) => {
                       const val = Number(e.target.value);
@@ -141,10 +144,10 @@ export function MobileInspectorDrawer({
                   />
                 </div>
 
-                {!isStair(selectedItem) && <label className="block text-xs font-semibold">Elevation (cm)<input aria-label="Elevation in centimeters" type="number" min="0" step="5" value={selectedItem.elevation ?? 0} onChange={e => onUpdateItem(selectedItem.id, { elevation: Math.max(0, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>}
-                <label className="block text-xs font-semibold">{isStair(selectedItem) ? (selectedItem.stairDirection === 'down' ? 'Descent' : 'Rise') : 'Height'} (cm)<input aria-label={isStair(selectedItem) ? "Rise or descent in centimeters" : "Height in centimeters"} type="number" min="1" value={selectedItem.height ?? itemType?.height ?? 100} onChange={e => onUpdateItem(selectedItem.id, { height: Math.max(1, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>
+                {!isStair(selectedItem) && !isStairSymbol(selectedItem) && <label className="block text-xs font-semibold">Elevation (cm)<input aria-label="Elevation in centimeters" type="number" min="0" step="5" value={selectedItem.elevation ?? 0} onChange={e => onUpdateItem(selectedItem.id, { elevation: Math.max(0, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>}
+                {!isStairSymbol(selectedItem) && <label className="block text-xs font-semibold">{isStair(selectedItem) ? (selectedItem.stairDirection === 'down' ? 'Descent' : 'Rise') : 'Height'} (cm)<input aria-label={isStair(selectedItem) ? "Rise or descent in centimeters" : "Height in centimeters"} type="number" min="1" value={selectedItem.height ?? itemType?.height ?? 100} onChange={e => onUpdateItem(selectedItem.id, { height: Math.max(1, Number(e.target.value)) })} className="w-full border rounded p-2" /></label>}
                 {/* Item Material & Finish */}
-                <div className="pt-2 border-t border-slate-100">
+                {!isShoji(selectedItem) && !isSeat(selectedItem) && !isTV(selectedItem) && !isCoffee(selectedItem) && !isRailing(selectedItem) && <div className="pt-2 border-t border-slate-100">
                   <MaterialPicker
                     mode="item"
                 upholstery={selectedItem.typeId.startsWith("liv_sofa_") || ["bed_single", "bed_queen", "bed_king"].includes(selectedItem.typeId)}
@@ -158,7 +161,7 @@ export function MobileInspectorDrawer({
                       onUpdateItem(selectedItem.id, { color: col });
                     }}
                   />
-                </div>
+                </div>}
               </>
             )}
 

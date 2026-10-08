@@ -23,9 +23,19 @@ export function packProperties(value: Record<string, unknown>): Partial<PlacedIt
     if (typeof value.stairRailings !== 'boolean') throw new Error('Invalid stair railings.');
     result.stairRailings = value.stairRailings;
   }
-  if (value.frameColor !== undefined) {
-    if (typeof value.frameColor !== 'string' || !/^#[0-9a-f]{6}$/i.test(value.frameColor)) throw new Error('Invalid frame color.');
-    result.frameColor = value.frameColor;
+  for (const key of ['frameColor','legColor'] as const) if (value[key] !== undefined) {
+    if (typeof value[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(value[key] as string)) throw new Error('Invalid frame color.');
+    result[key] = value[key] as string;
+  }
+  for (const [key,allowed] of [['seatMaterial',['wood','fabric','leather']],['tableFinish',['wood','glass','stone']],['railingStyle',['metal','glass','wood']],['panelState',['closed','half','open']],['panelMaterial',['paper','woven']]] as const) {
+    if(value[key] !== undefined) {
+      if(typeof value[key] !== 'string' || !(allowed as readonly string[]).includes(value[key] as string)) throw new Error('Invalid sliding panel option.');
+      Object.assign(result,{[key]:value[key]});
+    }
+  }
+  if(value.seatHeight !== undefined) {
+    if(typeof value.seatHeight !== 'number'||!Number.isFinite(value.seatHeight)||value.seatHeight<1||value.seatHeight>300) throw new Error('Invalid seat height.');
+    result.seatHeight=value.seatHeight;
   }
   return result;
 }

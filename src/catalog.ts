@@ -14,6 +14,12 @@ export const ITEM_CATALOG: ItemType[] = [
   { id: 'door_glass_double', name: 'Glass Door (Double)', category: 'door', width: 180, depth: 12, height: 270, color: '#d9e9eb', shape: 'door', icon: 'PanelsTopLeft' },
   { id: 'door_glass_sliding', name: 'Glass Door (Sliding)', category: 'door', width: 240, depth: 16, height: 270, color: '#d9e9eb', shape: 'door', icon: 'PanelLeftRightDashed' },
 
+  // Shoji panels use the same wall opening and placement rules as windows/doors.
+  { id: 'shoji_short_single', name: 'Shoji (Short single)', category: 'kitchen', width: 100, depth: 12, height: 110, defaultElevation: 90, color: '#eee5d4', shape: 'window', icon: 'AppWindow' },
+  { id: 'shoji_short_pair', name: 'Shoji (Short paired)', category: 'kitchen', width: 180, depth: 12, height: 110, defaultElevation: 90, color: '#eee5d4', shape: 'window', icon: 'PanelsTopLeft' },
+  { id: 'shoji_tall_single', name: 'Shoji (Tall single)', category: 'living', width: 100, depth: 12, height: 240, color: '#eee5d4', shape: 'door', icon: 'DoorOpen' },
+  { id: 'shoji_tall_pair', name: 'Shoji (Tall paired)', category: 'living', width: 180, depth: 12, height: 240, color: '#eee5d4', shape: 'door', icon: 'PanelsTopLeft' },
+
   // Kitchen
   { id: 'kit_counter', name: 'Kitchen Counter', category: 'kitchen', width: 180, depth: 60, height: 90, color: '#e5e7eb', shape: 'counter', icon: 'CookingPot' },
   { id: 'kit_base_cabinet', name: 'Base Cabinet', category: 'kitchen', width: 60, depth: 60, height: 90, color: '#e5e7eb', shape: 'base_cabinet', icon: 'Archive' },
@@ -28,6 +34,18 @@ export const ITEM_CATALOG: ItemType[] = [
 
   { id: 'kit_island_seating', name: 'Island (Seating overhang)', category: 'kitchen', width: 200, depth: 110, height: 90, color: '#d6c5ac', shape: 'kitchen_island', icon: 'Layout' },
   { id: 'kit_island_divider', name: 'Island (With divider)', category: 'kitchen', width: 200, depth: 100, height: 90, color: '#d6c5ac', shape: 'kitchen_island', icon: 'Columns3' },
+
+  { id: 'chair_wood', name: 'Dining Chair (Wooden)', category: 'kitchen', width: 46, depth: 50, height: 82, color: '#c3a17b', shape: 'chair', icon: 'Armchair' },
+  { id: 'chair_upholstered', name: 'Dining Chair (Upholstered)', category: 'kitchen', width: 52, depth: 56, height: 86, color: '#d6caba', shape: 'chair', icon: 'Armchair' },
+  { id: 'chair_modern', name: 'Dining Chair (Modern)', category: 'kitchen', width: 48, depth: 50, height: 80, color: '#d4d9d3', shape: 'chair', icon: 'Armchair' },
+  { id: 'stool_backless', name: 'Bar Stool (Backless)', category: 'kitchen', width: 40, depth: 40, height: 75, color: '#c3a17b', shape: 'chair', icon: 'Armchair' },
+  { id: 'stool_low', name: 'Bar Stool (Low back)', category: 'kitchen', width: 44, depth: 46, height: 94, color: '#bca991', shape: 'chair', icon: 'Armchair' },
+  { id: 'stool_full', name: 'Bar Stool (Full back)', category: 'kitchen', width: 46, depth: 50, height: 112, color: '#d6caba', shape: 'chair', icon: 'Armchair' },
+  { id: 'tv_tabletop', name: 'TV (Tabletop stand)', category: 'living', width: 122, depth: 25, height: 78, color: '#202523', shape: 'tv', icon: 'Tv' },
+  { id: 'tv_wall', name: 'TV (Wall mounted)', category: 'living', width: 122, depth: 6, height: 68.625, defaultElevation: 110, color: '#202523', shape: 'tv', icon: 'Tv' },
+  { id: 'coffee_rect', name: 'Coffee Table (Rectangular)', category: 'living', width: 110, depth: 60, height: 40, color: '#bd9b73', shape: 'coffee_table', icon: 'Table' },
+  { id: 'coffee_round', name: 'Coffee Table (Round)', category: 'living', width: 75, depth: 75, height: 40, color: '#bd9b73', shape: 'coffee_table', icon: 'Circle' },
+  { id: 'coffee_oval', name: 'Coffee Table (Oval)', category: 'living', width: 120, depth: 65, height: 40, color: '#bd9b73', shape: 'coffee_table', icon: 'Table' },
 
   // Bedroom
   { id: 'bed_single', name: 'Bed (Single)', category: 'bedroom', width: 100, depth: 200, height: 55, color: '#e2e8f0', shape: 'bed', icon: 'Bed' },
@@ -57,6 +75,12 @@ export const ITEM_CATALOG: ItemType[] = [
   { id: 'bal_chair', name: 'Outdoor Chair', category: 'balcony', width: 70, depth: 75, height: 85, color: '#f59e0b', shape: 'box', icon: 'Armchair' },
   { id: 'bal_lounge_chair', name: 'Lounge Chair', category: 'balcony', width: 75, depth: 85, height: 90, color: '#f59e0b', shape: 'lounge_chair', icon: 'Armchair' },
 
+  { id: 'stair_symbol_straight', name: 'Stair symbol · 2D only (Straight)', category: 'architecture', width: 110, depth: 320, height: 1, color: '#334155', shape: 'stair_symbol', icon: 'ChartNoAxesColumnIncreasing' },
+  { id: 'stair_symbol_l', name: 'Stair symbol · 2D only (L-shaped)', category: 'architecture', width: 240, depth: 320, height: 1, color: '#334155', shape: 'stair_symbol', icon: 'ChartNoAxesColumnIncreasing' },
+  { id: 'stair_symbol_u', name: 'Stair symbol · 2D only (U-shaped)', category: 'architecture', width: 240, depth: 320, height: 1, color: '#334155', shape: 'stair_symbol', icon: 'ChartNoAxesColumnIncreasing' },
+  { id: 'platform_steps_2', name: 'Platform steps · 2D + 3D (2-step)', category: 'architecture', width: 120, depth: 56, height: 32, color: '#c7b69e', shape: 'platform_steps', icon: 'ChartNoAxesColumnIncreasing' },
+  { id: 'platform_steps_3', name: 'Platform steps · 2D + 3D (3-step)', category: 'architecture', width: 120, depth: 84, height: 48, color: '#c7b69e', shape: 'platform_steps', icon: 'ChartNoAxesColumnIncreasing' },
+  { id: 'platform_steps_4', name: 'Platform steps · 2D + 3D (4-step)', category: 'architecture', width: 120, depth: 112, height: 64, color: '#c7b69e', shape: 'platform_steps', icon: 'ChartNoAxesColumnIncreasing' },
   // Decorative stairs: height is the positive rise/descent magnitude.
   { id: 'stairs_straight', name: 'Stairs (Straight)', category: 'architecture', width: 110, depth: 360, height: 280, color: '#c7b69e', shape: 'stairs', icon: 'ChartNoAxesColumnIncreasing' },
   { id: 'stairs_l', name: 'Stairs (L-shaped)', category: 'architecture', width: 280, depth: 320, height: 280, color: '#c7b69e', shape: 'stairs', icon: 'CornerDownRight' },

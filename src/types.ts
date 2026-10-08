@@ -35,12 +35,19 @@ export type ItemType = {
   height: number; // y axis (height in 3d)
   depth: number; // z axis (y in 2d)
   color: string;
-  shape: 'box' | 'cylinder' | 'sofa' | 'bed' | 'table' | 'counter' | 'door' | 'window' | 'bathtub' | 'toilet' | 'rug' | 'base_cabinet' | 'corner_cabinet' | 'kitchen_island' | 'kitchen_sink' | 'dishwasher' | 'railing' | 'corner_railing' | 'lounge_chair' | 'room_divider' | 'tv_cabinet' | 'stairs';
+  shape: 'box' | 'cylinder' | 'sofa' | 'bed' | 'table' | 'counter' | 'door' | 'window' | 'bathtub' | 'toilet' | 'rug' | 'base_cabinet' | 'corner_cabinet' | 'kitchen_island' | 'kitchen_sink' | 'dishwasher' | 'railing' | 'corner_railing' | 'lounge_chair' | 'room_divider' | 'tv_cabinet' | 'stairs' | 'chair' | 'tv' | 'coffee_table' | 'stair_symbol' | 'platform_steps';
   icon: string;
   defaultElevation?: number;
 };
 
 export type PlacedItem = {
+  seatHeight?: number;
+  seatMaterial?: 'wood' | 'fabric' | 'leather';
+  tableFinish?: 'wood' | 'glass' | 'stone';
+  legColor?: string;
+  railingStyle?: 'metal' | 'glass' | 'wood';
+  panelState?: 'closed' | 'half' | 'open';
+  panelMaterial?: 'paper' | 'woven';
   dividerStyle?: 'solid' | 'slats' | 'glass' | 'fluted' | 'folding';
   dividerHeight?: number;
   stairDirection?: 'up' | 'down';

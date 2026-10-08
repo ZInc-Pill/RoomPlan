@@ -1,4 +1,9 @@
-import { Island3D, Stairs3D, GlazedOpening3D } from './ObjectPack3D';
+import { isStairSymbol,isPlatformSteps,platformCount } from '../utils/smallStairs';
+import { isSeat,isTV,isCoffee,isRailing } from '../utils/furniturePack';
+import { FurniturePack3D } from './FurniturePack';
+import { isShoji } from '../utils/shoji';
+import { Shoji3D } from './ShojiPanels';
+import { Island3D, Stairs3D, PlatformSteps3D, GlazedOpening3D } from './ObjectPack3D';
 import { stairOpening, isGlassDoor, isStair } from '../utils/objectPack';
 import { floorWithOpenings } from '../utils/floorOpenings';
 import { MobileControlPortal, RailButton } from './MobileWorkspace';
@@ -630,40 +635,7 @@ function Item3D({
           color={color} roughness={roughness} metalness={metalness} />
       )}
 
-      {typeInfo.shape === 'railing' && (
-        <group>
-          {/* Top rail */}
-          <mesh position={[0, h - 2.5, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w, 5, d]} />
-            <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
-          </mesh>
-          {/* Posts */}
-          <mesh position={[-w/2 + 2.5, h/2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[5, h, d]} />
-            <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
-          </mesh>
-          <mesh position={[w/2 - 2.5, h/2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[5, h, d]} />
-            <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
-          </mesh>
-        </group>
-      )}
-
-      {typeInfo.shape === 'corner_railing' && (
-        <group>
-          <mesh position={[0, h - 1, -d / 2]} castShadow receiveShadow>
-            <boxGeometry args={[w, 2, 2]} /><meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
-          </mesh>
-          <mesh position={[-w / 2, h - 1, 0]} castShadow receiveShadow>
-            <boxGeometry args={[2, 2, d]} /><meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
-          </mesh>
-          {[[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2]].map(([x, z], index) => (
-            <mesh key={index} position={[x, h / 2, z]} castShadow receiveShadow>
-              <boxGeometry args={[2, h, 2]} /><meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
-            </mesh>
-          ))}
-        </group>
-      )}
+      {(isSeat(item)||isTV(item)||isCoffee(item)||isRailing(item)) && <FurniturePack3D item={item} w={w} h={h} d={d}/> }
 
       {typeInfo.shape === 'lounge_chair' && (
         <group>
@@ -703,9 +675,11 @@ function Item3D({
       )}
 
       {typeInfo.shape === 'kitchen_island' && <Island3D item={item} w={w} h={h} d={d} color={color} roughness={roughness} metalness={metalness} map={itemTexture} />}
+      {isPlatformSteps(item) && <PlatformSteps3D count={platformCount(item)} w={w} h={h} d={d} color={color} roughness={roughness} metalness={metalness} map={itemTexture}/> }
       {typeInfo.shape === 'stairs' && <Stairs3D item={item} w={w} h={h} d={d} color={color} roughness={roughness} metalness={metalness} map={itemTexture} />}
+      {isShoji(item) && <Shoji3D item={item} w={w} h={h} d={d}/> }
       {isGlassDoor(item) && <GlazedOpening3D item={item} w={w} h={h} d={d} />}
-      {typeInfo.shape === 'door' && !isGlassDoor(item) && (
+      {typeInfo.shape === 'door' && !isGlassDoor(item) && !isShoji(item) && (
         <group>
           <mesh position={[-w/2 + 2.5, h/2, 0]} castShadow receiveShadow>
             <boxGeometry args={[5, h, d]} />
@@ -732,7 +706,7 @@ function Item3D({
         </group>
       )}
 
-      {typeInfo.shape === 'window' && <GlazedOpening3D item={{...item,frameColor:item.frameColor??'#ffffff'}} w={w} h={h} d={d} />}
+      {typeInfo.shape === 'window' && !isShoji(item) && <GlazedOpening3D item={{...item,frameColor:item.frameColor??'#ffffff'}} w={w} h={h} d={d} />}
 
       {typeInfo.shape === 'bathtub' && (
         <group>
@@ -1342,7 +1316,7 @@ export function Canvas3D({
     };
   }, [walls]);
 
-  const selectedItem = selectedItemIds.length === 1 ? items.find(i => i.id === selectedItemIds[0]) || null : null;
+  const selectedItem = selectedItemIds.length === 1 ? items.find(i => i.id === selectedItemIds[0] && !isStairSymbol(i)) || null : null;
   const selectedWall = selectedWallId ? walls.find(w => w.id === selectedWallId) || null : null;
   const selectedFloor = selectedFloorId ? floors.find(f => f.id === selectedFloorId) || null : null;
   const selectedItemType = selectedItem ? ITEM_CATALOG.find(c => c.id === selectedItem.typeId) : null;
@@ -1563,7 +1537,7 @@ export function Canvas3D({
           />
 
           {/* Placed Items */}
-          {items.map(item => (
+          {items.filter(item=>!isStairSymbol(item)).map(item => (
             <Item3D 
               key={item.id} 
               item={item} 

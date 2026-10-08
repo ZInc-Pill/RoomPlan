@@ -85,3 +85,10 @@ export function GlazedOpening3D({item,w,h,d}: {item:PlacedItem;w:number;h:number
     {sliding && <Part size={[w,bar,d]} at={[0,bar/2,0]} color={frame}/>}
   </group>;
 }
+
+export function PlatformSteps3D({count,w,h,d,...finish}:{count:number;w:number;h:number;d:number}&Finish) {
+  return <group>{Array.from({length:count},(_,i)=>{
+    const height=h*(i+1)/count;
+    return <Part key={i} size={[w,height,d/count]} at={[0,height/2,-d/2+(i+.5)*d/count]} {...finish}/>;
+  })}</group>;
+}
